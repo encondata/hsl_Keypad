@@ -22,7 +22,7 @@ Download `HSLKeypad.c4z` from the GitHub release (or build it with
 1. On the Mac: HSL Toolbar → Settings → **Control4** → **+**.
 2. Enter the controller's IP address, port **8751**, and the pairing code.
 3. Click **Pair & Connect**.
-   - Expected: "Connected · agent 0.0.1". **Paired Macs** in Composer shows the
+   - Expected: "Connected · agent 0.0.2". **Paired Macs** in Composer shows the
      Mac's name. **Published by the agent** shows rooms, lights and fans.
 
 ## 3. Try the keypad
@@ -42,6 +42,19 @@ Also try:
 - Rename a light in Composer. Within a few seconds it should show the new name
   in the Mac's button picker.
 
+## 3b. New in 0.0.2
+
+Assign and try:
+
+- an **Advanced Lighting scene** (toggle it; also change it from a keypad and
+  watch the Mac's button follow);
+- a **macro** (run it);
+- a **Watch** source and a **Listen** source in one room (select, then toggle
+  again to turn the room off; also change the source with the Control4 app).
+
+If any of these lists are empty in the Mac's button picker, that's the case
+**Log Project Info** is for.
+
 ## 4. Send back
 
 - The **Status** property text, and whether the **H** icon showed.
@@ -51,9 +64,9 @@ Also try:
   what this controller exposes for scenes, macros, fan speeds, and
   dimmer-vs-switch, which the public docs don't cover.
 
-## Known limits in 0.0.1
+## Known limits in 0.0.2
 
-- No Advanced Lighting scenes or macros yet (they need the Log Project Info
-  output).
+- Scenes, macros and Watch/Listen sources are found using request names
+  Control4 doesn't document. Log Project Info shows what worked.
 - Every light is treated as dimmable; fans are assumed to have 3 speeds.
 - The site name comes from the **Site Name** property, not the project.

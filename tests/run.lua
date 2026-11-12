@@ -12,7 +12,7 @@ function check(cond, name)
   end
 end
 
-for _, file in ipairs({ "test_json", "test_core" }) do
+for _, file in ipairs({ "test_json", "test_core", "test_project" }) do
   dofile(here .. file .. ".lua")
 end
 

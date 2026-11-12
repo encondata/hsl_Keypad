@@ -7,7 +7,7 @@
 -- deps = {
 --   platform = {
 --     info()                          -> { project=, os=, address=, netmask= }
---     catalog()                       -> { rooms=, lights=, fans=, scenes=, macros= }
+--     catalog()                       -> { rooms=, lights=, fans=, scenes=, macros=, watch=, listen= }
 --     state(kind, id)                 -> { on=, level=, speed=, active= } or nil
 --     command(kind, id, action, msg)  -> true | false, "message"
 --   },
@@ -24,12 +24,12 @@ local json = require("json")
 local Core = {}
 Core.__index = Core
 
-Core.VERSION = "0.0.1"
+Core.VERSION = "0.0.2"
 Core.MAX_LINE = 64 * 1024
 Core.MAX_BAD_CODES = 5      -- wrong pairing codes before a lockout
 Core.LOCKOUT_SECONDS = 60
 
-local KINDS = { light = true, fan = true, scene = true, macro = true }
+local KINDS = { light = true, fan = true, scene = true, macro = true, watch = true, listen = true }
 
 local function hex(random, n)
   local out = {}
@@ -219,6 +219,8 @@ function Core:catalogMessage(ref)
     fans = json.array(c.fans or {}),
     scenes = json.array(c.scenes or {}),
     macros = json.array(c.macros or {}),
+    watch = json.array(c.watch or {}),
+    listen = json.array(c.listen or {}),
   }
 end
 

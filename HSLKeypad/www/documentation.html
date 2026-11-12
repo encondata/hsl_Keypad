@@ -2,52 +2,96 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>HSL Keypad</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>HSL Keypad — HackSpaceLabs</title>
 <style>
-  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; margin: 24px; color: #1d1d1f; line-height: 1.45; max-width: 720px; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  h2 { font-size: 15px; margin-top: 22px; }
-  code { background: #f2f2f4; padding: 1px 4px; border-radius: 3px; }
-  td { padding: 3px 12px 3px 0; vertical-align: top; }
-  .muted { color: #6e6e73; }
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; margin: 0; color: #1d1d1f; background: #ffffff; line-height: 1.5; font-size: 14px; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 28px 40px; }
+  .logo { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 0 18px; }
+  h1 { font-size: 22px; margin: 0 0 2px; color: #0b3a62; }
+  .sub { color: #6e6e73; margin: 0 0 18px; }
+  h2 { font-size: 16px; margin: 26px 0 8px; color: #0b3a62; border-bottom: 1px solid #e5e5ea; padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 5px 12px 5px 0; vertical-align: top; border-bottom: 1px solid #f0f0f3; }
+  th { color: #6e6e73; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  code { background: #f2f2f4; padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+  .note { background: #fff6e8; border-left: 3px solid #fe6a18; padding: 8px 12px; margin: 12px 0; }
+  ol li, ul li { margin: 3px 0; }
+  .foot { color: #8e8e93; font-size: 12px; margin-top: 30px; }
 </style>
 </head>
 <body>
-<h1>HSL Keypad agent</h1>
-<p class="muted">HackSpaceLabs · for Control4 OS 3.4 and X4</p>
+<div class="wrap">
 
-<p>Lets the HSL Toolbar app on a Mac show a 12-button keypad for this project's lights and fans.
-The Mac assigns the buttons; this agent publishes what can be assigned, runs commands, and reports state.
-It works on the local network (or over a VPN to it).</p>
+<img class="logo" src="images/hackspacelabs-logo.png" alt="HackSpaceLabs — Build • Explore • Connect">
+
+<h1>HSL Keypad</h1>
+<p class="sub">Control4 agent · version 0.0.2 · OS 3.4.x and X4</p>
+
+<p>HSL Keypad lets the <b>HSL Toolbar</b> Mac app show 12-button keypad pages for this project.
+The Mac assigns the buttons; this agent publishes everything that can be assigned, runs the
+commands, and reports state back so the buttons stay lit correctly.
+It works on the local network, or over a VPN to it.</p>
+
+<h2>What the Mac can put on a button</h2>
+<table>
+  <tr><th>Type</th><th>Click</th><th>Shows</th></tr>
+  <tr><td>Lights</td><td>Toggle, on, off, or a set level · hold to dim · right-click for a level slider</td><td>On/off and level</td></tr>
+  <tr><td>Fans</td><td>Toggle, on, off</td><td>Speed</td></tr>
+  <tr><td>Advanced Lighting scenes</td><td>Toggle or activate</td><td>Active or not</td></tr>
+  <tr><td>Macros</td><td>Run</td><td>—</td></tr>
+  <tr><td>Watch</td><td>Select a room's video source, or toggle it (selected → room off)</td><td>Whether the room is watching it</td></tr>
+  <tr><td>Listen</td><td>Select a room's audio source, or toggle it</td><td>Whether the room is listening to it</td></tr>
+</table>
+<p>Lights, fans, rooms, scenes, macros and sources are found automatically and republished
+when the project changes (devices added, removed, renamed or moved).</p>
 
 <h2>Setup</h2>
 <ol>
-  <li>Add the agent (Agents → Add, or Driver → Add or Update Driver or Agent). One per project.</li>
-  <li>Optionally set <b>Site Name</b> (shown in the Mac app) and <b>Port</b> (default 8751).</li>
-  <li>On the Mac: HSL Toolbar → Settings → Control4 → add the controller's IP address and port,
-      enter the <b>Pairing Code</b> shown in this agent's properties, and click Pair &amp; Connect.</li>
+  <li>Driver → <b>Add or Update Driver or Agent</b> → choose <code>HSLKeypad.c4z</code>.</li>
+  <li>Agents → add <b>HSL Keypad</b>. One per project.</li>
+  <li>Optional: set <b>Site Name</b> (how the Mac labels this site) and <b>Port</b> (default 8751).</li>
+  <li>On the Mac: HSL Toolbar → Settings → <b>Control4</b> → <b>+</b>. Enter this controller's
+      IP address, the port, and the <b>Pairing Code</b> from this agent's properties, then click
+      <b>Pair &amp; Connect</b>.</li>
+  <li>On the Mac: open the H in the menu bar → <b>Smart Home</b> → <b>Edit</b> to assign buttons.</li>
 </ol>
 
 <h2>Properties</h2>
 <table>
-  <tr><td><b>Site Name</b></td><td>Name the Mac app shows for this site.</td></tr>
-  <tr><td><b>Port</b></td><td>TCP port the Mac app connects to.</td></tr>
-  <tr><td><b>Pairing Code</b></td><td>6-digit code for pairing a Mac. Five wrong attempts lock pairing for a minute.</td></tr>
-  <tr><td><b>Paired Macs</b></td><td>Macs that can connect.</td></tr>
-  <tr><td><b>Status</b></td><td>Listening state, connected Macs, and devices found.</td></tr>
-  <tr><td><b>Debug Mode</b></td><td>Logs activity to the Lua output window.</td></tr>
+  <tr><td>Site Name</td><td>Name the Mac shows for this site (defaults to “Control4”).</td></tr>
+  <tr><td>Port</td><td>TCP port the Mac connects to. Default 8751.</td></tr>
+  <tr><td>Pairing Code</td><td>Six digits for pairing a Mac. Five wrong attempts lock pairing for a minute.</td></tr>
+  <tr><td>Paired Macs</td><td>The Macs that can connect.</td></tr>
+  <tr><td>Status</td><td>Listening state, connected Macs, and the lights and fans found.</td></tr>
+  <tr><td>Debug Mode</td><td>Writes activity to the Lua output window.</td></tr>
 </table>
 
 <h2>Actions</h2>
 <table>
-  <tr><td><b>New Pairing Code</b></td><td>Replaces the code (paired Macs stay paired).</td></tr>
-  <tr><td><b>Unpair All Macs</b></td><td>Disconnects and forgets every Mac.</td></tr>
-  <tr><td><b>Refresh Devices</b></td><td>Re-reads lights and fans now (it also happens automatically when the project changes).</td></tr>
-  <tr><td><b>Log Project Info</b></td><td>Prints what this controller exposes to the Lua output window, for troubleshooting.</td></tr>
+  <tr><td>New Pairing Code</td><td>Replaces the code. Macs already paired stay paired.</td></tr>
+  <tr><td>Unpair All Macs</td><td>Disconnects and forgets every Mac. They must pair again.</td></tr>
+  <tr><td>Refresh Devices</td><td>Re-reads the project now. This also happens automatically.</td></tr>
+  <tr><td>Log Project Info</td><td>Prints what this controller exposes (devices, rooms, scenes, macros,
+      sources, and how each was found) to the Lua output window — useful for support.</td></tr>
 </table>
 
-<h2>Current version</h2>
-<p>Lights (on, off, toggle, level, press-and-hold dimming) and fans (on, off, toggle, speed).
-Advanced Lighting scenes and macros are planned.</p>
+<h2>Troubleshooting</h2>
+<ul>
+  <li><b>The Mac can't connect.</b> Check the IP and port, that the Mac is on this network (or its VPN),
+      and that <b>Status</b> says “Listening”.</li>
+  <li><b>“Wrong pairing code” or “Too many”.</b> Use the current <b>Pairing Code</b>; after five wrong
+      tries, wait a minute.</li>
+  <li><b>Scenes, macros or Watch/Listen sources are missing.</b> Run <b>Log Project Info</b> with
+      <b>Debug Mode</b> on and send the Lua output to HackSpaceLabs. This version finds them
+      automatically where the controller allows it.</li>
+</ul>
+
+<div class="note"><b>0.0.2 test build.</b> Lights and fans are confirmed on X4. Scenes, macros and
+Watch/Listen are new in this build and still being confirmed on real controllers.</div>
+
+<p class="foot">© 2026 HackSpaceLabs · Build • Explore • Connect</p>
+</div>
 </body>
 </html>

@@ -2,8 +2,9 @@
 
 # HSL Keypad — Control4 agent
 
-A Control4 **agent** that lets the **HSL Toolbar** Mac app show a 12-button
-keypad for a project's lights and fans. The Mac assigns the buttons; the agent
+A Control4 **agent** that lets the **HSL Toolbar** Mac app show 12-button
+keypads for a project's lights, fans, Advanced Lighting scenes, macros, and each
+room's Watch and Listen sources. The Mac assigns the buttons; the agent
 publishes what can be assigned, runs commands, and reports state live.
 
 - Runs on **Control4 OS 3.4.x and X4**: one `.c4z`, no LuaSocket, no `io.popen`.
@@ -11,9 +12,9 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.1, first test build.** Developed and tested on a Mac against an
-> emulator running the real agent code. It hasn't been loaded on a real
-> controller yet — see [TESTING.md](TESTING.md).
+> **Status: 0.0.2 test build.** Lights and fans are confirmed on a Control4 X4
+> controller. Scenes, macros and Watch/Listen are new in 0.0.2 and tested
+> against the emulator only — see [TESTING.md](TESTING.md).
 
 ## Install
 
@@ -23,24 +24,32 @@ publishes what can be assigned, runs commands, and reports state live.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
 
-## What 0.0.1 does
+## What 0.0.2 does
 
 | | |
 |---|---|
 | Lights | on, off, toggle, set level, press-and-hold dimming, live level |
 | Fans | on, off, toggle, speed, live speed |
+| Advanced Lighting scenes | toggle or activate, live active state |
+| Macros | run |
+| Watch / Listen | select a room's source, toggle (selected → room off), room off, live state |
 | Project changes | devices added, removed, renamed or moved are republished automatically |
 | Composer | properties: Site Name, Port, Pairing Code, Paired Macs, Status, Debug Mode · actions: New Pairing Code, Unpair All Macs, Refresh Devices, Log Project Info |
 
-Not yet: Advanced Lighting scenes and macros, dimmer-vs-switch detection, fan
-speed counts. Running **Log Project Info** on a real controller collects what's
-needed for these.
+Not yet: dimmer-vs-switch detection and fan speed counts. Scenes, macros and
+sources are *listed* using request names Control4 doesn't document; if any are
+missing on a controller, its **Log Project Info** output shows why.
+
+To upgrade, add the new `HSLKeypad.c4z` in Composer the same way — its higher
+version number replaces the installed agent in place.
+Control4 only auto-updates drivers hosted in its own driver database, so
+updates from GitHub are installed by hand.
 
 ## Repository
 
 | Path | What |
 |---|---|
-| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation) |
+| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `project.lua` (discovery), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation with the logo) |
 | `tests/` | Lua tests — `luajit tests/run.lua` |
 | `emulator/` | Runs the real agent on a Mac behind a TCP port (`bridge.swift` + a fake Control4 API in `emulator.lua`) |
 | `scripts/package.sh` | Tests, then builds `build/HSLKeypad.c4z` |

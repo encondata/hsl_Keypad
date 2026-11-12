@@ -1,4 +1,7 @@
-# HSL Keypad — app ↔ Control4 agent protocol (draft 3)
+| watch, listen | `select`  | —                             | `SELECT_VIDEO_DEVICE` / `SELECT_AUDIO_DEVICE` in that room |
+| watch, listen | `roomOff` | —                             | `ROOM_OFF` for that room |
+| watch, listen | `toggle`  | —                             | room off if this source is active, else select it |
+# HSL Keypad — app ↔ Control4 agent protocol (draft 4)
 
 The Mac app owns the keypad: pages, button assignments, labels and icons are
 stored in the app. On each Control4 project, the **HSL Keypad agent** (a `.c4z` added in
@@ -9,27 +12,26 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.1)
+## Implementation status (agent 0.0.2)
 
-Source in `HSLKeypad/` (`driver.xml`, `driver.lua` = Control4 layer,
-`core.lua` = this protocol, `json.lua`); package with `scripts/package.sh`
-→ `build/HSLKeypad.c4z`. Tested on the Mac only: Lua unit tests
-(`luajit tests/run.lua`) and the real agent code running in the
-emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
-**Not yet loaded on a real controller.**
+Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
+`project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
+`json.lua`); package with `scripts/package.sh` → `build/HSLKeypad.c4z`.
+Tested with Lua unit tests (`luajit tests/run.lua`) and the real agent code in
+the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
 
-- Done: pairing + lockout, tokens, welcome (`agentVersion`, `os`, `address`),
-  catalog of rooms/lights/fans with live updates, light and fan commands
-  (light on/off as keypad clicks, hold-to-ramp via `BUTTON_ACTION`), state via
-  variable listeners.
-- Not yet: Advanced Lighting scenes and macros (the docs don't say how an agent
-  lists them — run the agent's **Log Project Info** action on a controller and
-  send the output), dimmer vs switch detection (all lights report dimmable),
-  fan speed count (assumed 3), netmask (not exposed; the app uses the Mac's),
-  project name (the **Site Name** property instead).
-- To confirm on real controllers (3.4 and X4): `fan.c4i` as the fan proxy file
-  name, fan variable names, `OnServerDataIn` delivering whole lines, the icons
-  showing in Composer.
+- **Confirmed on X4 (0.0.1):** pairing, lights and fans, live state, project
+  changes, the H icon.
+- **New in 0.0.2, not yet confirmed on a controller:** Advanced Lighting
+  scenes, macros, Watch/Listen sources, every room listed, documentation with
+  the full HackSpaceLabs logo. Scene and source *commands and state* use
+  documented calls; *listing* scenes, macros and room sources uses undocumented
+  `SendUIRequest` names and project XML, tried in order (see `project.lua`).
+  **Log Project Info** prints every attempt and reply.
+- Not yet: dimmer vs switch detection (all lights report dimmable), fan speed
+  count (assumed 3), netmask (not exposed; the app uses the Mac's), project
+  name (the **Site Name** property instead), self-update (Control4 only
+  auto-updates drivers hosted in its own driver database).
 
 ## Agent
 
@@ -92,7 +94,9 @@ but may: `{"type":"catalog","ref":"1"}`.
    "lights": [{"id":345,"room":12,"name":"Cans","dimmable":true,"color":false}],
    "fans":   [{"id":402,"room":20,"name":"Family Fan","speeds":4}],
    "scenes": [{"id":3,"name":"Movie Time"}],
-   "macros": [{"id":7,"name":"Goodnight"}]}
+   "macros": [{"id":7,"name":"Goodnight"}],
+   "watch":  [{"id":1200200,"room":12,"device":200,"name":"Apple TV"}],
+   "listen": [{"id":1200210,"room":12,"device":210,"name":"Spotify"}]}
 
 ← {"type":"catalogDelta","revision":18,
    "upsert":{"lights":[{"id":351,"room":12,"name":"Island","dimmable":true,"color":false}]},
@@ -106,6 +110,9 @@ but may: `{"type":"catalog","ref":"1"}`.
   change hooks via project/device events.
 - Removed items that are still on a button show as "missing" in the app rather
   than disappearing silently.
+- `watch` / `listen` are the sources in each room's Watch and Listen menus. A
+  source's `id` is `room × 100000 + device`, so the same device in two rooms is
+  two buttons.
 
 ## State
 
@@ -116,10 +123,14 @@ The app subscribes, per controller, to what is on its buttons (all pages):
 ← {"type":"state","kind":"light","id":345,"on":true,"level":80}
 ← {"type":"state","kind":"fan","id":402,"on":true,"speed":2}
 ← {"type":"state","kind":"scene","id":3,"active":true}
+← {"type":"state","kind":"watch","id":1200200,"active":true}
 ```
 
 `watch` replaces the previous subscription; the agent replies with current
 state for every target, then sends `state` on each change. Macros have no state.
+Scene state comes from Advanced Lighting events (Activated = id×5,
+Deactivated = id×5+1); a source is `active` while its room's current video
+(Watch) or audio (Listen) device is that source.
 
 ## Commands
 

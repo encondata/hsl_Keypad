@@ -11,6 +11,7 @@
 
 local json = require("json")
 local Core = require("core")
+local Project = require("project")
 
 local LIGHT_FILES = "light_v2.c4i,light_v2.c4z"
 local FAN_FILES = "fan.c4i,fan.c4z"            -- (SDK gap) confirm on a real project
@@ -26,6 +27,14 @@ Agent = Agent or {
   refreshTimer = nil,
   rampButton = {},    -- deviceId -> BUTTON_ID being held
   connected = 0,
+  alAgent = nil,      -- Advanced Lighting agent device ID
+  macroAgent = nil,   -- Macros agent device ID
+  scenes = {},        -- sceneId -> { name, active }
+  macros = {},        -- macroId -> { name }
+  sources = {},       -- catalog id -> { kind = "watch"|"listen", room, device, name }
+  roomMedia = {},     -- roomId -> { audio = deviceId, video = deviceId }
+  sceneEvents = {},   -- registered scene event IDs
+  probes = {},        -- what discovery tried, for Log Project Info
 }
 
 -- Helpers ------------------------------------------------------------------------
@@ -151,16 +160,118 @@ function Agent.refresh()
   end
   Agent.lights, Agent.fans = newLights, newFans
 
+  -- Scenes, macros and Watch/Listen rely on undocumented replies; if their
+  -- discovery fails, log it and keep lights and fans working.
+  local okExtras, scenes, macros, watch, listen = pcall(Agent.discoverExtras, rooms, roomList)
+  if not okExtras then
+    print("HSL Keypad: scene/macro/source discovery failed: " .. tostring(scenes))
+    scenes, macros, watch, listen = {}, {}, {}, {}
+  end
+
   local catalog = {
     rooms = roomList, lights = lights, fans = fans,
-    -- (SDK gap) Advanced Lighting scenes and macros: the docs don't say how
-    -- an agent lists them yet. Use the "Log Project Info" action on a real
-    -- controller to find out, then add them here.
-    scenes = {}, macros = {},
+    scenes = scenes, macros = macros, watch = watch, listen = listen,
   }
   local changed = Agent.catalog == nil or json.encode(catalog) ~= json.encode(Agent.catalog)
   Agent.catalog = catalog
   return changed
+end
+
+--- Scenes, macros, and Watch/Listen sources. Adds any rooms it finds to
+--- `rooms`/`roomList`; registers for scene events and room media variables.
+function Agent.discoverExtras(rooms, roomList)
+  local probes = {}
+  local okA, agentsXml = call("GetProjectItems", "AGENTS", "NO_ROOT_TAGS")
+  local agentItems = Project.items(okA and agentsXml or nil)
+  local okL, locationsXml = call("GetProjectItems", "LOCATIONS", "NO_ROOT_TAGS")
+  local roomItems = {}
+  for _, item in ipairs(Project.items(okL and locationsXml or nil)) do
+    if item.type == Project.ROOM_TYPE then
+      roomItems[#roomItems + 1] = item
+      if not rooms[item.id] then
+        rooms[item.id] = true
+        roomList[#roomList + 1] = { id = item.id, name = item.name }
+      end
+    end
+  end
+  table.sort(roomList, function(a, b) return (a.name or "") < (b.name or "") end)
+
+  -- Advanced Lighting scenes
+  Agent.alAgent = Project.findAgent(call, Project.AL_FILES, "advanced lighting", agentItems)
+  local foundScenes, sceneLog, sceneRequest = Project.probe(call, Agent.alAgent, Project.SCENE_REQUESTS, { "scene", "item" })
+  probes.scenes = { agent = Agent.alAgent, request = sceneRequest, log = sceneLog }
+  local scenes, newScenes = {}, {}
+  for _, s in ipairs(foundScenes) do
+    local old = Agent.scenes[s.id] or {}
+    newScenes[s.id] = { name = s.name, active = old.active }
+    scenes[#scenes + 1] = { id = s.id, name = s.name }
+    for _, event in ipairs({ s.id * 5, s.id * 5 + 1 }) do
+      if not Agent.sceneEvents[event] then
+        call("RegisterDeviceEvent", Agent.alAgent, event)
+        Agent.sceneEvents[event] = true
+      end
+    end
+  end
+  Agent.scenes = newScenes
+
+  -- Macros
+  Agent.macroAgent = Project.findAgent(call, Project.MACRO_FILES, "macro", agentItems)
+  local foundMacros, macroLog, macroRequest = Project.probe(call, Agent.macroAgent, Project.MACRO_REQUESTS, { "macro", "item" })
+  probes.macros = { agent = Agent.macroAgent, request = macroRequest, log = macroLog }
+  local macros, newMacros = {}, {}
+  for _, m in ipairs(foundMacros) do
+    newMacros[m.id] = { name = m.name }
+    macros[#macros + 1] = { id = m.id, name = m.name }
+  end
+  Agent.macros = newMacros
+
+  -- Watch / Listen sources per room
+  local watch, listen, newSources = {}, {}, {}
+  probes.rooms = {}
+  local function add(list, kind, room, device, name)
+    local id = Project.sourceId(room, device)
+    if newSources[id] then return end
+    newSources[id] = { kind = kind, room = room, device = device, name = name }
+    list[#list + 1] = { id = id, room = room, device = device, name = name }
+  end
+  local function deviceName(id)
+    local ok, name = call("GetDeviceDisplayName", id)
+    return ok and name or ("Device " .. id)
+  end
+  for _, room in ipairs(roomItems) do
+    local roomProbe = { id = room.id, name = room.name }
+    for kind, spec in pairs({ watch = { Project.WATCH_REQUESTS, { "video_devices", "watch_devices", "videodevices" } },
+                              listen = { Project.LISTEN_REQUESTS, { "audio_devices", "listen_devices", "audiodevices" } } }) do
+      local requests, tags = spec[1], spec[2]
+      local list = kind == "watch" and watch or listen
+      local found, plog, request = Project.probe(call, room.id, requests, { "device", "source", "item" })
+      roomProbe[kind] = { request = request, log = plog }
+      for _, d in ipairs(found) do add(list, kind, room.id, d.id, d.name) end
+      if #found == 0 then
+        for _, deviceId in ipairs(Project.roomDevices(room.data, tags)) do
+          add(list, kind, room.id, deviceId, deviceName(deviceId))
+        end
+      end
+    end
+    probes.rooms[#probes.rooms + 1] = roomProbe
+  end
+  -- Listen to each room that has sources (current audio/video device).
+  for id, source in pairs(newSources) do
+    if not Agent.roomMedia[source.room] then
+      Agent.roomMedia[source.room] = {}
+      call("RegisterVariableListener", source.room, Project.ROOM_AUDIO_VAR)
+      call("RegisterVariableListener", source.room, Project.ROOM_VIDEO_VAR)
+    end
+  end
+  Agent.sources = newSources
+  Agent.probes = probes
+
+  local byName = function(a, b) return (a.name or "") < (b.name or "") end
+  table.sort(scenes, byName)
+  table.sort(macros, byName)
+  table.sort(watch, byName)
+  table.sort(listen, byName)
+  return scenes, macros, watch, listen
 end
 
 local function scheduleRefresh()
@@ -195,8 +306,48 @@ local function fanState(id)
   return { on = fan.on == true or (fan.speed or 0) > 0, speed = fan.speed or 0 }
 end
 
+local function sceneState(id)
+  local scene = Agent.scenes[id]
+  return scene and { active = scene.active == true } or nil
+end
+
+local function sourceState(id)
+  local source = Agent.sources[id]
+  if not source then return nil end
+  local media = Agent.roomMedia[source.room] or {}
+  local current = source.kind == "watch" and media.video or media.audio
+  return { active = current == source.device }
+end
+
+--- A room's current audio/video device changed: update its Watch/Listen buttons.
+local function roomMediaChanged(roomId)
+  if not Agent.core then return end
+  for id, source in pairs(Agent.sources) do
+    if source.room == roomId then Agent.core:stateChanged(source.kind, id, sourceState(id)) end
+  end
+end
+
+--- Advanced Lighting scene events: Activated = id*5, Deactivated = id*5+1.
+function OnDeviceEvent(firingDeviceId, eventId)
+  firingDeviceId, eventId = tonumber(firingDeviceId), tonumber(eventId)
+  if firingDeviceId ~= Agent.alAgent or not eventId then return end
+  local sceneId, which = math.floor(eventId / 5), eventId % 5
+  local scene = Agent.scenes[sceneId]
+  if not scene or (which ~= 0 and which ~= 1) then return end
+  scene.active = which == 0
+  if Agent.core then Agent.core:stateChanged("scene", sceneId, sceneState(sceneId)) end
+end
+
 function OnWatchedVariableChanged(idDevice, idVariable, strValue)
   idDevice, idVariable = tonumber(idDevice), tonumber(idVariable)
+  local media = Agent.roomMedia[idDevice]
+  if media and (idVariable == Project.ROOM_AUDIO_VAR or idVariable == Project.ROOM_VIDEO_VAR) then
+    local device = tonumber(strValue)
+    if device == 0 then device = nil end
+    if idVariable == Project.ROOM_AUDIO_VAR then media.audio = device else media.video = device end
+    roomMediaChanged(idDevice)
+    return
+  end
   local light = Agent.lights[idDevice]
   if light then
     if idVariable == LIGHT_STATE_VAR then light.on = truthy(strValue) end
@@ -256,6 +407,39 @@ local function fanCommand(id, action, msg)
   return false, "Fans can't do “" .. tostring(action) .. "”."
 end
 
+local function sceneCommand(id, action)
+  if not Agent.alAgent then return false, "No Advanced Lighting agent found in this project." end
+  if not Agent.scenes[id] then return false, "Scene " .. id .. " isn't in this project." end
+  local command = ({ activate = "ACTIVATE_SCENE", toggle = "TOGGLE_SCENE", off = "DEACTIVATE_SCENE" })[action]
+  if not command then return false, "Scenes can't do “" .. tostring(action) .. "”." end
+  return send(Agent.alAgent, command, { SCENE_ID = id })
+end
+
+local function macroCommand(id, action)
+  if not Agent.macroAgent then return false, "No Macros agent found in this project." end
+  if not Agent.macros[id] then return false, "Macro " .. id .. " isn't in this project." end
+  if action ~= "run" then return false, "Macros can only run." end
+  -- (SDK gap) The run command isn't documented; Log Project Info shows the
+  -- agent's replies so this can be confirmed.
+  log("running macro " .. id)
+  return send(Agent.macroAgent, "EXECUTE_MACRO", { MACRO_ID = id, ID = id })
+end
+
+local function sourceCommand(kind, id, action)
+  local source = Agent.sources[id]
+  if not source or source.kind ~= kind then return false, "That source isn't in this project." end
+  local select = kind == "watch" and "SELECT_VIDEO_DEVICE" or "SELECT_AUDIO_DEVICE"
+  if action == "select" or action == "on" then
+    return send(source.room, select, { deviceid = source.device })
+  elseif action == "roomOff" or action == "off" then
+    return send(source.room, "ROOM_OFF")
+  elseif action == "toggle" then
+    if sourceState(id).active then return send(source.room, "ROOM_OFF") end
+    return send(source.room, select, { deviceid = source.device })
+  end
+  return false, "Sources can't do “" .. tostring(action) .. "”."
+end
+
 -- Platform for core.lua -----------------------------------------------------------
 
 local platform = {}
@@ -280,6 +464,8 @@ end
 function platform.state(kind, id)
   if kind == "light" then return lightState(id) end
   if kind == "fan" then return fanState(id) end
+  if kind == "scene" then return sceneState(id) end
+  if kind == "watch" or kind == "listen" then return sourceState(id) end
   return nil
 end
 
@@ -288,11 +474,14 @@ function platform.command(kind, id, action, msg)
     local ok, message = lightCommand(id, action, msg)
     return ok and true or false, message or (ok and nil or "Control4 didn't accept that command.")
   end
-  if kind == "fan" then
-    local ok, message = fanCommand(id, action, msg)
-    return ok and true or false, message or (ok and nil or "Control4 didn't accept that command.")
+  local ok, message
+  if kind == "fan" then ok, message = fanCommand(id, action, msg)
+  elseif kind == "scene" then ok, message = sceneCommand(id, action)
+  elseif kind == "macro" then ok, message = macroCommand(id, action)
+  elseif kind == "watch" or kind == "listen" then ok, message = sourceCommand(kind, id, action)
+  else return false, "This agent version doesn't support " .. tostring(kind) .. " yet."
   end
-  return false, "This agent version doesn't support " .. tostring(kind) .. "s yet."
+  return ok and true or false, message or (ok and nil or "Control4 didn't accept that command.")
 end
 
 -- Status properties ---------------------------------------------------------------
@@ -440,6 +629,41 @@ function Agent.logProjectInfo()
     table.sort(names)
     print("system events: " .. table.concat(names, ", "))
   end
+
+  local function chunk(label, text)
+    text = tostring(text or "")
+    if text == "" then print(label .. ": (empty)"); return end
+    for i = 1, math.min(#text, 12000), 3000 do print(label .. ": " .. text:sub(i, i + 2999)) end
+  end
+  local okL, locations = call("GetProjectItems", "LOCATIONS", "NO_ROOT_TAGS")
+  chunk("locations", okL and locations or nil)
+
+  -- What scene / macro / Watch-Listen discovery tried, and what came back.
+  local p = Agent.probes or {}
+  local function probeLog(label, probe)
+    probe = probe or {}
+    print(string.format("%s: agent/room %s, worked: %s", label, tostring(probe.agent or probe.id), tostring(probe.request or "none")))
+    for _, entry in ipairs(probe.log or {}) do chunk("  " .. entry.request, entry.reply) end
+  end
+  probeLog("scenes", p.scenes)
+  probeLog("macros", p.macros)
+  for i, room in ipairs(p.rooms or {}) do
+    if i > 3 then print("(more rooms omitted)"); break end
+    print("room " .. tostring(room.id) .. " " .. tostring(room.name))
+    probeLog("  watch", room.watch)
+    probeLog("  listen", room.listen)
+    for var = 1000, 1012 do
+      local ok, value = call("GetDeviceVariable", room.id, var)
+      if ok and value ~= nil then print(string.format("  room var %d = %s", var, tostring(value))) end
+    end
+  end
+  local okC, codeItems = call("GetAllCodeItems")
+  if okC and codeItems ~= nil then
+    chunk("code items", type(codeItems) == "table" and json.encode(codeItems) or codeItems)
+  end
+  print(string.format("published: %d scenes, %d macros, %d watch, %d listen",
+    #(Agent.catalog and Agent.catalog.scenes or {}), #(Agent.catalog and Agent.catalog.macros or {}),
+    #(Agent.catalog and Agent.catalog.watch or {}), #(Agent.catalog and Agent.catalog.listen or {})))
   print("==== end ====")
 end
 

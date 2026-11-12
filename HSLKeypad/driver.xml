@@ -5,8 +5,8 @@
 	<model>HSL Keypad Agent</model>
 	<creator>HackSpaceLabs</creator>
 	<created>11/11/2026 20:00</created>
-	<modified>11/11/2026 20:00</modified>
-	<version>1</version>
+	<modified>11/11/2026 21:00</modified>
+	<version>2</version>
 	<control>lua_gen</control>
 	<driver>DriverWorks</driver>
 	<!-- Runs on OS 3.4.x and X4: no LuaSocket, no io.popen, bundled JSON. -->

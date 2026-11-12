@@ -8,7 +8,8 @@
 --   HSL_EMU_OS        reported OS version (default 3.4.3.0)
 --
 -- Console commands (type into the bridge): help, props, level <id> <0-100>,
--- fan <id> <speed>, rename <id> <name>, add <light|fan> <roomId> <name>,
+-- fan <id> <speed>, scene <id> on|off, watch|listen <room> <device>,
+-- roomoff <room>, rename <id> <name>, add <light|fan> <roomId> <name>,
 -- remove <id>, action <ActionCommand>, set <Property> <value>
 
 local here = debug.getinfo(1, "S").source:match("^@(.*/)") or "./"
@@ -47,6 +48,15 @@ addDevice(346, "light", 12, "Pendants")
 addDevice(350, "light", 14, "Lamps", false)
 addDevice(402, "fan", 14, "Family Fan")
 local nextDeviceId = 500
+
+-- Agents, scenes, macros, rooms and media sources.
+local AL_AGENT, MACRO_AGENT = 100, 101
+local scenes = { [3] = { name = "Movie Time", active = false }, [4] = { name = "All Off", active = false } }
+local macros = { [7] = "Goodnight", [8] = "Leave & Lock" }
+local mediaNames = { [200] = "Apple TV", [201] = "Cable Box", [210] = "Spotify", [211] = "Sonos" }
+rooms[16] = "Office"
+local roomMedia = { [12] = { [1001] = "0", [1002] = "0" }, [14] = { [1001] = "0", [1002] = "0" }, [16] = { [1001] = "0", [1002] = "0" } }
+local deviceEvents = {}
 
 -- Properties from driver.xml defaults ----------------------------------------------
 
@@ -109,7 +119,45 @@ function C4:ServerCloseClient(handle) emit("CLOSE " .. handle) end
 function C4:GetDeviceID() return 9001 end
 function C4:GetVersionInfo() return { version = os.getenv("HSL_EMU_OS") or "3.4.3.0" } end
 function C4:GetControllerNetworkAddress() return "127.0.0.1" end
-function C4:GetProjectItems() return "<agents><agent><name>Advanced Lighting</name></agent></agents>" end
+local function xmlEscape(s) return (s:gsub("&", "&amp;"):gsub("<", "&lt;")) end
+function C4:GetProjectItems(filter)
+  if filter == "LOCATIONS" then
+    -- Kitchen answers SendUIRequest; Living Room only lists sources in its data.
+    return "<item><id>1</id><name>Home</name><type>2</type><itemdata/><subitems>"
+      .. "<item><id>12</id><name>Kitchen</name><type>8</type><itemdata/></item>"
+      .. "<item><id>14</id><name>Living Room</name><type>8</type><itemdata><video_devices><id>201</id></video_devices><audio_devices><id>211</id></audio_devices></itemdata></item>"
+      .. "<item><id>16</id><name>Office</name><type>8</type><itemdata/></item>"
+      .. "</subitems></item>"
+  end
+  return "<item><id>100</id><name>Advanced Lighting</name><type>9</type><itemdata/></item>"
+    .. "<item><id>101</id><name>Macros</name><type>9</type><itemdata/></item>"
+end
+
+function C4:GetDevicesByC4iName() return {} end  -- force the by-name fallback
+
+function C4:GetDeviceDisplayName(id)
+  id = tonumber(id)
+  return mediaNames[id] or (devicesById[id] and devicesById[id].name) or ("Device " .. tostring(id))
+end
+
+function C4:SendUIRequest(id, request)
+  id = tonumber(id)
+  if id == AL_AGENT and request == "GET_SCENES" then
+    local parts = {}
+    for sid, s in pairs(scenes) do parts[#parts + 1] = "<scene><id>" .. sid .. "</id><name>" .. xmlEscape(s.name) .. "</name></scene>" end
+    return "<scenes>" .. table.concat(parts) .. "</scenes>"
+  end
+  if id == MACRO_AGENT and request == "GET_ALL_MACROS" then  -- the 2nd name the agent tries
+    local parts = {}
+    for mid, name in pairs(macros) do parts[#parts + 1] = '<macro id="' .. mid .. '" name="' .. xmlEscape(name) .. '"/>' end
+    return "<macros>" .. table.concat(parts) .. "</macros>"
+  end
+  if id == 12 and request == "GET_VIDEO_DEVICES" then return "<devices><device><id>200</id><name>Apple TV</name></device></devices>" end
+  if id == 12 and request == "GET_AUDIO_DEVICES" then return '<devices><device id="210" name="Spotify"/></devices>' end
+  return "<error>unknown request</error>"
+end
+
+function C4:RegisterDeviceEvent(id, eventId) deviceEvents[tonumber(id) .. ":" .. tonumber(eventId)] = true end
 function C4:RegisterSystemEvent(eventId, deviceId) systemEvents[eventId] = true end
 
 function C4:GetDevices(filter)
@@ -133,6 +181,8 @@ function C4:GetDeviceVariables(id)
 end
 
 function C4:GetDeviceVariable(id, varId)
+  id, varId = tonumber(id), tonumber(varId)
+  if roomMedia[id] then return roomMedia[id][varId] end
   local d = devicesById[id]
   return d and d.vars[varId] and d.vars[varId].value or nil
 end
@@ -172,10 +222,49 @@ end
 
 -- light_v2 button handling: click = on/off, hold = ramp until released.
 local held = {}  -- deviceId -> { button, holdTimer, rampTimer }
+local function setRoom(room, varId, value)
+  value = tostring(value)
+  if roomMedia[room][varId] == value then return end
+  roomMedia[room][varId] = value
+  if listeners[room .. ":" .. varId] and OnWatchedVariableChanged then OnWatchedVariableChanged(room, varId, value) end
+end
+
+local function setScene(sceneId, active)
+  local scene = scenes[sceneId]
+  if not scene then return end
+  scene.active = active
+  local event = sceneId * 5 + (active and 0 or 1)
+  if deviceEvents[AL_AGENT .. ":" .. event] and OnDeviceEvent then OnDeviceEvent(AL_AGENT, event) end
+end
+
 function C4:SendToDevice(id, command, params)
-  local d = devicesById[tonumber(id)]
-  if not d then return end
+  id = tonumber(id)
   params = params or {}
+  if id == AL_AGENT then
+    local sceneId = tonumber(params.SCENE_ID)
+    local scene = scenes[sceneId]
+    if not scene then return end
+    if command == "ACTIVATE_SCENE" then setScene(sceneId, true)
+    elseif command == "DEACTIVATE_SCENE" then setScene(sceneId, false)
+    elseif command == "TOGGLE_SCENE" then setScene(sceneId, not scene.active)
+    end
+    return
+  end
+  if id == MACRO_AGENT then
+    local macroId = tonumber(params.MACRO_ID or params.ID)
+    if command == "EXECUTE_MACRO" and macros[macroId] then print("macro " .. macroId .. " (" .. macros[macroId] .. ") ran") end
+    return
+  end
+  if roomMedia[id] then
+    local device = tonumber(params.deviceid or params.DEVICEID) or 0
+    if command == "SELECT_VIDEO_DEVICE" then setRoom(id, 1002, device); setRoom(id, 1001, device)
+    elseif command == "SELECT_AUDIO_DEVICE" then setRoom(id, 1002, 0); setRoom(id, 1001, device)
+    elseif command == "ROOM_OFF" then setRoom(id, 1002, 0); setRoom(id, 1001, 0)
+    end
+    return
+  end
+  local d = devicesById[id]
+  if not d then return end
   if d.kind == "light" then
     local level = tonumber(d.vars[1001].value) or 0
     if command == "TOGGLE" then setLevel(d, level > 0 and 0 or 100)
@@ -232,7 +321,7 @@ end
 local function console(text)
   local cmd, rest = text:match("^(%S+)%s*(.*)$")
   if cmd == "help" then
-    print("commands: props | level <id> <0-100> | fan <id> <speed> | rename <id> <name> | add <light|fan> <roomId> <name> | remove <id> | action <Command> | set <Property> <value>")
+    print("commands: props | level <id> <0-100> | fan <id> <speed> | scene <id> on|off | watch <room> <device> | listen <room> <device> | roomoff <room> | rename <id> <name> | add <light|fan> <roomId> <name> | remove <id> | action <Command> | set <Property> <value>")
   elseif cmd == "props" then
     local names = {}
     for k in pairs(Properties) do names[#names + 1] = k end
@@ -261,6 +350,18 @@ local function console(text)
   elseif cmd == "remove" then
     local id = tonumber(rest)
     if devicesById[id] then devicesById[id] = nil; projectChanged("OnItemRemoved") end
+  elseif cmd == "scene" then  -- scene <id> on|off   (e.g. from a wall keypad)
+    local id, state = rest:match("^(%d+)%s+(%a+)$")
+    setScene(tonumber(id), state == "on")
+  elseif cmd == "watch" or cmd == "listen" then  -- watch <room> <device>
+    local room, device = rest:match("^(%d+)%s+(%d+)$")
+    room, device = tonumber(room), tonumber(device)
+    if roomMedia[room] then
+      C4:SendToDevice(room, cmd == "watch" and "SELECT_VIDEO_DEVICE" or "SELECT_AUDIO_DEVICE", { deviceid = device })
+    end
+  elseif cmd == "roomoff" then
+    local room = tonumber(rest)
+    if roomMedia[room] then C4:SendToDevice(room, "ROOM_OFF") end
   elseif cmd == "action" then
     if ExecuteCommand then ExecuteCommand("LUA_ACTION", { ACTION = rest }) end
   elseif cmd == "set" then

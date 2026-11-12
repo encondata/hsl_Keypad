@@ -23,7 +23,7 @@ let script = args.count > 2 ? args[2] : here.appending(path: "emulator.lua").pat
 let lua = Process()
 lua.executableURL = URL(fileURLWithPath: luajit)
 lua.arguments = [script]
-lua.currentDirectoryURL = here
+lua.currentDirectoryURL = URL(fileURLWithPath: script).deletingLastPathComponent()
 let toLua = Pipe(), fromLua = Pipe()
 lua.standardInput = toLua
 lua.standardOutput = fromLua
