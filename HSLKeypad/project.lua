@@ -159,4 +159,19 @@ end
 function Project.sourceId(room, device) return room * 100000 + device end
 function Project.splitSourceId(id) return math.floor(id / 100000), id % 100000 end
 
+--- A fan proxy's GET_SETUP reply → speed count (default 3) and speed names
+--- (only when there's one per speed).
+function Project.fanSetup(xml)
+  if type(xml) ~= "string" then return 3, nil end
+  local count = tonumber(field(xml, "speeds_count", "speed_count", "discrete_levels") or "")
+  if not count or count < 1 or count > 10 then count = 3 end
+  local names = {}
+  for name in (field(xml, "speed_names") or ""):gmatch("[^,]+") do
+    name = name:match("^%s*(.-)%s*$")
+    if name ~= "" then names[#names + 1] = name end
+  end
+  if #names ~= count then names = nil end
+  return count, names
+end
+
 return Project

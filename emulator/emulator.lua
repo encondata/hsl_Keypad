@@ -38,8 +38,8 @@ local function addDevice(id, kind, room, name, extra)
     d.vars[1001] = { name = "Brightness Percent", value = "0" }
     d.dimmer = extra ~= false
   else
-    d.vars[1100] = { name = "Is On", value = "0" }
-    d.vars[1101] = { name = "Current Selected Speed", value = "0" }
+    d.vars[1100] = { name = "IS_ON", value = "0" }  -- X4 names
+    d.vars[1101] = { name = "CURRENT_SPEED", value = "0" }
   end
   devicesById[id] = d
   return d
@@ -181,7 +181,7 @@ function C4:GetProjectItems(filter)
         .. roomState(watch, listen) .. "</item>"
     end
     return "<item><id>1</id><name>Home</name><type>2</type><itemdata/><subitems>"
-      .. room(12, "Kitchen", { 200 }, { 210 })
+      .. room(12, "Kitchen", { 200 }, { 210, 200 })  -- Apple TV is a Watch and a Listen source, as on X4
       .. room(14, "Living Room", { 201 }, { 211 })
       .. room(16, "Office", {}, {})
       .. "</subitems></item>"
@@ -204,6 +204,10 @@ function C4:SendUIRequest(id, request)
         .. (s.active and "True" or "False") .. "</is_active></scene_info>"
     end
     return "<scene_list>" .. table.concat(parts) .. "</scene_list>"
+  end
+  local fan = devicesById[id]
+  if fan and fan.kind == "fan" and request == "GET_SETUP" then  -- X4 fan proxy reply
+    return "<fan_setup><speeds_count>4</speeds_count><speed_names>Low,Medium,Medium High,High</speed_names><can_reverse>False</can_reverse></fan_setup>"
   end
   if id == MACRO_AGENT and request == "GET_MACROS" then
     local parts = {}
@@ -430,6 +434,9 @@ local function console(text)
   elseif cmd == "roomoff" then
     local room = tonumber(rest)
     if roomMedia[room] then C4:SendToDevice(room, "ROOM_OFF") end
+  elseif cmd == "eval" then  -- eval <lua>  (emulator only: inspect the agent, e.g. eval print(Agent.roomMedia[12].video))
+    local fn, err = loadstring(rest)
+    if not fn then print("eval: " .. tostring(err)) else local ok, e = pcall(fn); if not ok then print("eval: " .. tostring(e)) end end
   elseif cmd == "action" then
     if ExecuteCommand then ExecuteCommand("LUA_ACTION", { ACTION = rest }) end
   elseif cmd == "set" then

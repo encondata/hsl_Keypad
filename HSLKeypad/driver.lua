@@ -38,7 +38,8 @@ Agent = Agent or {
   macroAgent = nil,   -- Macros agent device ID
   scenes = {},        -- sceneId -> { name, active }
   macros = {},        -- macroId -> { name }
-  sources = {},       -- catalog id -> { kind = "watch"|"listen", room, device, name }
+  sources = {},       -- "watch:<id>" / "listen:<id>" -> { kind, id, room, device, name }
+                      -- (one device can be both a Watch and a Listen source in a room, same id)
   roomMedia = {},     -- roomId -> { audio = deviceId, video = deviceId }
   sceneEvents = {},   -- registered scene event IDs
   probes = {},        -- what discovery tried, for Log Project Info
@@ -100,11 +101,19 @@ local function fanVariables(deviceId)
     local name = type(v) == "table" and (v.name or v.Name) or nil
     local id = tonumber(type(v) == "table" and (v.id or v.ID) or nil) or tonumber(key)
     if name and id then
-      if name == "Is On" then vars[id] = "on" end
-      if name == "Current Selected Speed" then vars[id] = "speed" end
+      -- Docs' names, and X4's (IS_ON / CURRENT_SPEED, confirmed 0.0.6).
+      if name == "Is On" or name == "IS_ON" then vars[id] = "on" end
+      if name == "Current Selected Speed" or name == "CURRENT_SPEED" then vars[id] = "speed" end
     end
   end
   return vars
+end
+
+--- A fan's speed count and names from its proxy (X4: GET_SETUP →
+--- <fan_setup><speeds_count>4</speeds_count><speed_names>Low,…</speed_names>).
+local function fanSetup(deviceId)
+  local ok, reply = call("SendUIRequest", deviceId, "GET_SETUP", {})
+  return Project.fanSetup(ok and reply or nil)
 end
 
 local function listen(deviceId, varId)
@@ -137,9 +146,13 @@ function Agent.refresh()
     id = tonumber(id)
     if id then
       local old = Agent.fans[id] or {}
-      newFans[id] = { name = d.deviceName, room = tonumber(d.roomId), speeds = 3, on = old.on, speed = old.speed,
-                      vars = fanVariables(id) }
-      fans[#fans + 1] = { id = id, room = tonumber(d.roomId), name = d.deviceName or ("Fan " .. id), speeds = 3 }
+      local speeds, names = old.speeds, old.speedNames
+      if not speeds then speeds, names = fanSetup(id) end
+      newFans[id] = { name = d.deviceName, room = tonumber(d.roomId), speeds = speeds, speedNames = names,
+                      on = old.on, speed = old.speed, vars = fanVariables(id) }
+      local fan = { id = id, room = tonumber(d.roomId), name = d.deviceName or ("Fan " .. id), speeds = speeds }
+      if names and #names > 0 then fan.speedNames = json.array(names) end
+      fans[#fans + 1] = fan
       addRoom(d.roomId, d.roomName)
     end
   end
@@ -280,9 +293,10 @@ function Agent.discoverExtras(rooms, roomList)
       local list = kind == "watch" and watch or listen
       for _, deviceId in ipairs(entry[kind]) do
         local id = Project.sourceId(room.id, deviceId)
-        if not newSources[id] then
+        local key = kind .. ":" .. id
+        if not newSources[key] then
           local name = deviceName(deviceId)
-          newSources[id] = { kind = kind, room = room.id, device = deviceId, name = name }
+          newSources[key] = { kind = kind, id = id, room = room.id, device = deviceId, name = name }
           list[#list + 1] = { id = id, room = room.id, device = deviceId, name = name }
         end
       end
@@ -345,19 +359,24 @@ local function sceneState(id)
   return scene and { active = scene.active == true } or nil
 end
 
-local function sourceState(id)
-  local source = Agent.sources[id]
+local function sourceState(kind, id)
+  local source = Agent.sources[kind .. ":" .. id]
   if not source then return nil end
   local media = Agent.roomMedia[source.room] or {}
-  local current = source.kind == "watch" and media.video or media.audio
-  return { active = current == source.device }
+  -- Watch: the room's video device. Listen: its audio device, but only in an
+  -- audio-only session (watching also sets the audio device to the same box).
+  -- (Not `a and b or c`: a nil video would fall through to the audio device.)
+  if source.kind == "watch" then
+    return { active = media.video == source.device }
+  end
+  return { active = media.video == nil and media.audio == source.device }
 end
 
 --- A room's current audio/video device changed: update its Watch/Listen buttons.
 local function roomMediaChanged(roomId)
   if not Agent.core then return end
-  for id, source in pairs(Agent.sources) do
-    if source.room == roomId then Agent.core:stateChanged(source.kind, id, sourceState(id)) end
+  for _, source in pairs(Agent.sources) do
+    if source.room == roomId then Agent.core:stateChanged(source.kind, source.id, sourceState(source.kind, source.id)) end
   end
 end
 
@@ -460,15 +479,15 @@ local function macroCommand(id, action)
 end
 
 local function sourceCommand(kind, id, action)
-  local source = Agent.sources[id]
-  if not source or source.kind ~= kind then return false, "That source isn't in this project." end
+  local source = Agent.sources[kind .. ":" .. id]
+  if not source then return false, "That source isn't in this project." end
   local select = kind == "watch" and "SELECT_VIDEO_DEVICE" or "SELECT_AUDIO_DEVICE"
   if action == "select" or action == "on" then
     return send(source.room, select, { deviceid = source.device })
   elseif action == "roomOff" or action == "off" then
     return send(source.room, "ROOM_OFF")
   elseif action == "toggle" then
-    if sourceState(id).active then return send(source.room, "ROOM_OFF") end
+    if sourceState(kind, id).active then return send(source.room, "ROOM_OFF") end
     return send(source.room, select, { deviceid = source.device })
   end
   return false, "Sources can't do “" .. tostring(action) .. "”."
@@ -545,7 +564,7 @@ function platform.state(kind, id)
   if kind == "light" then return lightState(id) end
   if kind == "fan" then return fanState(id) end
   if kind == "scene" then return sceneState(id) end
-  if kind == "watch" or kind == "listen" then return sourceState(id) end
+  if kind == "watch" or kind == "listen" then return sourceState(kind, id) end
   return nil
 end
 

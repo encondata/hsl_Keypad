@@ -12,7 +12,7 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.5 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
+> **Status: 0.0.6 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
 > rooms, macros (listed and run), Advanced Lighting scenes and each room's Watch / Listen
 > sources are found. Scene and source buttons are new in this build — see [TESTING.md](TESTING.md).
 
@@ -24,12 +24,12 @@ publishes what can be assigned, runs commands, and reports state live.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
 
-## What 0.0.5 does
+## What 0.0.6 does
 
 | | |
 |---|---|
 | Lights | on, off, toggle, set level, press-and-hold dimming, live level |
-| Fans | on, off, toggle, speed, live speed |
+| Fans | on, off, toggle, any speed, live speed; each fan's own speed count and names (e.g. Low, Medium, Medium High, High) |
 | Advanced Lighting scenes | toggle or activate, live active state |
 | Macros | run |
 | Watch / Listen | select a room's source, toggle (selected → room off), room off, live state |

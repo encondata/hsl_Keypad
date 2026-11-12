@@ -25,7 +25,7 @@ local json = require("json")
 local Core = {}
 Core.__index = Core
 
-Core.VERSION = "0.0.5"
+Core.VERSION = "0.0.6"
 Core.MAX_LINE = 64 * 1024
 Core.MAX_BAD_CODES = 5      -- wrong pairing codes before a lockout
 Core.LOCKOUT_SECONDS = 60

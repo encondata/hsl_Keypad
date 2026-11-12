@@ -6,7 +6,7 @@
 	<creator>HackSpaceLabs</creator>
 	<created>11/11/2026 20:00</created>
 	<modified>11/12/2026 09:00</modified>
-	<version>5</version>
+	<version>6</version>
 	<control>lua_gen</control>
 	<driver>DriverWorks</driver>
 	<!-- Runs on OS 3.4.x and X4: no LuaSocket, no io.popen, bundled JSON. -->

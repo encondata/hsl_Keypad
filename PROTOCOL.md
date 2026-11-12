@@ -12,7 +12,7 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.5)
+## Implementation status (agent 0.0.6)
 
 Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
 `project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
@@ -30,6 +30,11 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   **Log Project Info** prints every attempt and reply.
 - **On X4 (0.0.3):** 31 rooms, 46 lights, 4 fans, 14 macros listed; 0 scenes and
   0 Watch/Listen sources; running a macro (`EXECUTE_MACRO`) didn't work.
+- **Fixed in 0.0.6 (found on X4):** fan variables are `IS_ON` / `CURRENT_SPEED` (live fan
+  state never matched before); speed count and names come from the fan proxy's
+  `GET_SETUP` (`<speeds_count>`, `<speed_names>`) and are published as `speeds` +
+  `speedNames`; a device in both a room's Watch and Listen lists keeps both entries
+  (sources keyed by kind + id); Listen is active only for an audio-only session.
 - **Confirmed on X4 (0.0.5, via the developer tools):** scenes — `SendUIRequest(AL agent,
   "GET_SCENE_LIST")` → `<scene_list><scene_info><scene_id>…<name>…<is_active>`; AL events
   are 5·id (activated), 5·id+1 (deactivated); `ACTIVATE_SCENE {SCENE_ID}` (as Composer
@@ -119,7 +124,7 @@ but may: `{"type":"catalog","ref":"1"}`.
 ← {"type":"catalog","revision":17,
    "rooms":  [{"id":12,"name":"Kitchen","floor":"Main"}],
    "lights": [{"id":345,"room":12,"name":"Cans","dimmable":true,"color":false}],
-   "fans":   [{"id":402,"room":20,"name":"Family Fan","speeds":4}],
+   "fans":   [{"id":402,"room":20,"name":"Family Fan","speeds":4,"speedNames":["Low","Medium","Medium High","High"]}],
    "scenes": [{"id":3,"name":"Movie Time"}],
    "macros": [{"id":7,"name":"Goodnight"}],
    "watch":  [{"id":1200200,"room":12,"device":200,"name":"Apple TV"}],
