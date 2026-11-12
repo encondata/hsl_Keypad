@@ -37,7 +37,7 @@ publishes what can be assigned, runs commands, and reports state live.
 | Updates | checks GitHub daily (and on demand) for a newer release; shown in Composer and in the Mac app with a download link |
 | Composer | properties: Agent Version, Update Status, Automatic Update Check, Site Name, Port, Pairing Code, Paired Macs, Status, Debug Mode · actions: New Pairing Code, Unpair All Macs, Refresh Devices, Check for Updates, Log Project Info |
 
-Not yet: dimmer-vs-switch detection and fan speed counts. Scenes come from the
+Not yet: dimmer-vs-switch detection. Scenes come from the
 Advanced Lighting agent (`GET_SCENE_LIST`), macros from the Macros agent (`GET_MACROS`,
 run with `EXECUTE_MACRO {id}` — the command Composer's own programming uses), and
 Watch / Listen sources from each room's Navigator lists (rooms hidden in Navigator are
@@ -60,6 +60,9 @@ updates from GitHub are installed by hand.
 | `scripts/c4dev` | Developer commands to an agent (developer builds only) |
 | [PROTOCOL.md](PROTOCOL.md) | The app ↔ agent protocol |
 | [TESTING.md](TESTING.md) | First-load checklist for a real controller |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the agent is built, and why |
+| [docs/CONTROL4-NOTES.md](docs/CONTROL4-NOTES.md) | What Control4 controllers really do (undocumented requests, data shapes) |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Emulator, debugging on a controller, versioning, releases |
 
 ## Developer builds
 

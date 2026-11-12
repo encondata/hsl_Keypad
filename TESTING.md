@@ -15,8 +15,8 @@ Download `HSLKeypad.c4z` from the GitHub release (or build it with
    - **Pairing Code**: six digits.
    - **Status**: `Listening on port 8751 · 0 Macs connected · N lights, M fans`,
      where N and M roughly match the project.
-   - **Agent Version**: `0.0.3 (build 3)`.
-   - **Update Status**: within a minute, “Up to date (0.0.3)” — or which
+   - **Agent Version**: `0.0.6 (build 6) · developer build`.
+   - **Update Status**: within a minute, “Up to date (0.0.6)” — or which
      newer version is on GitHub. **Check for Updates** asks again now.
 4. Set **Debug Mode** to **On** and keep the **Lua** output tab open.
 
@@ -25,7 +25,7 @@ Download `HSLKeypad.c4z` from the GitHub release (or build it with
 1. On the Mac: HSL Toolbar → Settings → **Control4** → **+**.
 2. Enter the controller's IP address, port **8751**, and the pairing code.
 3. Click **Pair & Connect**.
-   - Expected: "Connected · agent 0.0.3". **Paired Macs** in Composer shows the
+   - Expected: "Connected · agent 0.0.6". **Paired Macs** in Composer shows the
      Mac's name. **Published by the agent** shows rooms, lights and fans.
 
 ## 3. Try the keypad
@@ -67,9 +67,10 @@ If any of these lists are empty in the Mac's button picker, that's the case
   what this controller exposes for scenes, macros, fan speeds, and
   dimmer-vs-switch, which the public docs don't cover.
 
-## Known limits in 0.0.3
+## Known limits
 
-- Scenes, macros and Watch/Listen sources are found using request names
-  Control4 doesn't document. Log Project Info shows what worked.
-- Every light is treated as dimmable; fans are assumed to have 3 speeds.
+- Scenes, macros, Watch/Listen sources and fan speed names rely on behaviour
+  Control4 doesn't document; it's confirmed on X4 (OS 4.3) only — see
+  [docs/CONTROL4-NOTES.md](docs/CONTROL4-NOTES.md). Log Project Info shows what worked.
+- Every light is treated as dimmable.
 - The site name comes from the **Site Name** property, not the project.

@@ -1,7 +1,8 @@
-| watch, listen | `select`  | —                             | `SELECT_VIDEO_DEVICE` / `SELECT_AUDIO_DEVICE` in that room |
-| watch, listen | `roomOff` | —                             | `ROOM_OFF` for that room |
-| watch, listen | `toggle`  | —                             | room off if this source is active, else select it |
 # HSL Keypad — app ↔ Control4 agent protocol (draft 5)
+
+See also [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how the agent is built),
+[docs/CONTROL4-NOTES.md](docs/CONTROL4-NOTES.md) (what controllers really do) and
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (testing, debugging, releasing).
 
 The Mac app owns the keypad: pages, button assignments, labels and icons are
 stored in the app. On each Control4 project, the **HSL Keypad agent** (a `.c4z` added in
@@ -56,8 +57,7 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   `C4:url()`), **Update Status** / **Automatic Update Check** properties,
   **Check for Updates** action; the app is told in `welcome.update` and live
   `update` messages.
-- Not yet: dimmer vs switch detection (all lights report dimmable), fan speed
-  count (assumed 3), netmask (not exposed; the app uses the Mac's), project
+- Not yet: dimmer vs switch detection (all lights report dimmable), netmask (not exposed; the app uses the Mac's), project
   name (the **Site Name** property instead), self-update (Control4 only
   auto-updates drivers hosted in its own driver database).
 
@@ -181,6 +181,9 @@ Deactivated = id×5+1); a source is `active` while its room's current video
 | fan   | `speed`       | `"value": 0…speeds`           | 0 = off |
 | scene | `activate` `toggle` `off` | —                 | |
 | macro | `run`         | —                             | |
+| watch, listen | `select`  | —                             | `SELECT_VIDEO_DEVICE` / `SELECT_AUDIO_DEVICE` in that room |
+| watch, listen | `roomOff` | —                             | `ROOM_OFF` for that room |
+| watch, listen | `toggle`  | —                             | room off if this source is active, else select it |
 
 ## App side: controllers, sites, pages
 
