@@ -7,7 +7,7 @@
 #
 # Production builds leave out devtools.lua and the driver.xml block between
 # DEV:BEGIN / DEV:END (Developer Mode), then check the package to prove it.
-# Only production builds go to GitHub releases.
+# Until 1.0, GitHub releases use the --dev build; from 1.0, production builds.
 #
 # Checks first: the Lua tests pass, every Lua file compiles, and driver.xml
 # is well-formed. Needs luajit (brew install luajit) and xmllint (macOS).

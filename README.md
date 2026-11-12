@@ -12,9 +12,9 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.3 test build.** Lights and fans are confirmed on a Control4 X4
-> controller. Scenes, macros and Watch/Listen (0.0.2) and update checks (0.0.3)
-> are tested against the emulator only — see [TESTING.md](TESTING.md).
+> **Status: 0.0.4 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
+> rooms and macro listing work; running macros, listing scenes and Watch/Listen sources
+> are being worked out with the developer tools — see [TESTING.md](TESTING.md).
 
 ## Install
 
@@ -24,7 +24,7 @@ publishes what can be assigned, runs commands, and reports state live.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
 
-## What 0.0.3 does
+## What 0.0.4 does
 
 | | |
 |---|---|
@@ -65,8 +65,10 @@ updates from GitHub are installed by hand.
 **Developer Mode** property (it switches itself off after 7 days). With it on, a paired
 Mac running HSL Toolbar (Settings → Control4 → Developer relay) lets `scripts/c4dev` call
 Control4 APIs, run Lua and read logs on the controller — for working out undocumented
-calls. The normal `scripts/package.sh` leaves all of this out and verifies it; only
-production builds are released.
+calls. The normal `scripts/package.sh` leaves all of this out and verifies it.
+
+**Until 1.0, GitHub releases are developer builds** (Developer Mode is off until you turn
+it on, and turns itself off after 7 days). From 1.0, releases will be production builds.
 
 Development needs macOS with the Xcode command-line tools and
 [LuaJIT](https://luajit.org) (`brew install luajit`).

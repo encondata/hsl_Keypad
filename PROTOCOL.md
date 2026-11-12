@@ -12,7 +12,7 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.3)
+## Implementation status (agent 0.0.4)
 
 Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
 `project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
@@ -28,6 +28,14 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   documented calls; *listing* scenes, macros and room sources uses undocumented
   `SendUIRequest` names and project XML, tried in order (see `project.lua`).
   **Log Project Info** prints every attempt and reply.
+- **On X4 (0.0.3):** 31 rooms, 46 lights, 4 fans, 14 macros listed; 0 scenes and
+  0 Watch/Listen sources; running a macro (`EXECUTE_MACRO`) didn't work.
+- **New in 0.0.4 (developer build):** `devtools.lua` — `{"type":"dev"}` with ops
+  `ping`, `call` (any C4 API), `eval` (Lua), `logs`; only for paired Macs, only
+  with **Developer Mode** On (7-day limit). The Mac app relays it from
+  127.0.0.1:8760 for `scripts/c4dev`. Status counts every kind; scenes/macros
+  also read from the agents' project item data. Pre-1.0 releases are developer
+  builds.
 - **New in 0.0.3:** **Agent Version** property (`Core.VERSION` + `driver.xml`
   build via `C4:GetDriverConfigInfo`), GitHub update check (`updates.lua`,
   `C4:url()`), **Update Status** / **Automatic Update Check** properties,

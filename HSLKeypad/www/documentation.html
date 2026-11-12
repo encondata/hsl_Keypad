@@ -27,7 +27,7 @@
 <img class="logo" src="images/hackspacelabs-logo.png" alt="HackSpaceLabs — Build • Explore • Connect">
 
 <h1>HSL Keypad</h1>
-<p class="sub">Control4 agent · version 0.0.3 · OS 3.4.x and X4</p>
+<p class="sub">Control4 agent · version 0.0.4 · OS 3.4.x and X4</p>
 
 <p>HSL Keypad lets the <b>HSL Toolbar</b> Mac app show 12-button keypad pages for this project.
 The Mac assigns the buttons; this agent publishes everything that can be assigned, runs the
@@ -69,6 +69,8 @@ when the project changes (devices added, removed, renamed or moved).</p>
   <tr><td>Paired Macs</td><td>The Macs that can connect.</td></tr>
   <tr><td>Status</td><td>Listening state, connected Macs, and the lights and fans found.</td></tr>
   <tr><td>Debug Mode</td><td>Writes activity to the Lua output window.</td></tr>
+  <tr><td>Developer Mode</td><td>Developer builds (all releases before 1.0): lets a paired Mac run developer diagnostics on this controller. Off by default; switches itself off after 7 days.</td></tr>
+  <tr><td>Developer Mode Until</td><td>When Developer Mode turns itself off.</td></tr>
 </table>
 
 <h2>Actions</h2>
@@ -99,8 +101,9 @@ build number replaces the installed agent.</p>
       automatically where the controller allows it.</li>
 </ul>
 
-<div class="note"><b>0.0.3 test build.</b> Lights and fans are confirmed on X4. Scenes, macros and
-Watch/Listen (new in 0.0.2) and update checks (new in 0.0.3) are still being confirmed on real controllers.</div>
+<div class="note"><b>0.0.4 developer build (alpha).</b> Lights, fans, rooms and macro listing work on X4.
+Running macros, Advanced Lighting scenes and Watch/Listen sources are still being worked out.
+Leave <b>Developer Mode</b> off unless HackSpaceLabs asks you to turn it on.</div>
 
 <p class="foot">© 2026 HackSpaceLabs · Build • Explore • Connect</p>
 </div>
