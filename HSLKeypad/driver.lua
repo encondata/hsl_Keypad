@@ -13,6 +13,9 @@ local json = require("json")
 local Core = require("core")
 local Project = require("project")
 local Updates = require("updates")
+-- Developer builds only: devtools.lua isn't in production packages.
+local hasDev, Dev = pcall(require, "devtools")
+if not hasDev then Dev = nil end
 
 local UPDATE_FIRST_CHECK_MS = 60 * 1000          -- a minute after startup
 local UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000   -- then daily
@@ -46,6 +49,7 @@ Agent = Agent or {
 -- Helpers ------------------------------------------------------------------------
 
 local function log(message)
+  if Dev then Dev.record(message) end
   if Properties and Properties["Debug Mode"] == "On" then print("HSL Keypad: " .. tostring(message)) end
 end
 
@@ -205,6 +209,10 @@ function Agent.discoverExtras(rooms, roomList)
   -- Advanced Lighting scenes
   Agent.alAgent = Project.findAgent(call, Project.AL_FILES, "advanced lighting", agentItems)
   local foundScenes, sceneLog, sceneRequest = Project.probe(call, Agent.alAgent, Project.SCENE_REQUESTS, { "scene", "item" })
+  if #foundScenes == 0 and Agent.alAgent then
+    foundScenes = Project.fromItemData(agentItems, Agent.alAgent, { "scene" })
+    if #foundScenes > 0 then sceneRequest = "project item data" end
+  end
   probes.scenes = { agent = Agent.alAgent, request = sceneRequest, log = sceneLog }
   local scenes, newScenes = {}, {}
   for _, s in ipairs(foundScenes) do
@@ -223,6 +231,10 @@ function Agent.discoverExtras(rooms, roomList)
   -- Macros
   Agent.macroAgent = Project.findAgent(call, Project.MACRO_FILES, "macro", agentItems)
   local foundMacros, macroLog, macroRequest = Project.probe(call, Agent.macroAgent, Project.MACRO_REQUESTS, { "macro", "item" })
+  if #foundMacros == 0 and Agent.macroAgent then
+    foundMacros = Project.fromItemData(agentItems, Agent.macroAgent, { "macro" })
+    if #foundMacros > 0 then macroRequest = "project item data" end
+  end
   probes.macros = { agent = Agent.macroAgent, request = macroRequest, log = macroLog }
   local macros, newMacros = {}, {}
   for _, m in ipairs(foundMacros) do
@@ -470,7 +482,7 @@ end
 function Agent.versionText()
   local ok, build = call("GetDriverConfigInfo", "version")
   build = ok and tostring(build or ""):match("%d+") or nil
-  return Core.VERSION .. (build and (" (build " .. build .. ")") or "")
+  return Core.VERSION .. (build and (" (build " .. build .. ")") or "") .. (Dev and " · developer build" or "")
 end
 
 --- Asks GitHub for a newer release; updates "Update Status" and tells Macs.
@@ -547,10 +559,12 @@ function Agent.updateStatus()
   update("Paired Macs", #names > 0 and table.concat(names, ", ") or "None")
   local count = 0
   for _, client in pairs(core.clients) do if client.authed then count = count + 1 end end
-  local catalog = Agent.catalog or { lights = {}, fans = {} }
-  update("Status", string.format("%s on port %s · %d Mac%s connected · %d lights, %d fans",
+  local catalog = Agent.catalog or {}
+  local function n(list) return #(list or {}) end
+  update("Status", string.format("%s on port %s · %d Mac%s connected · %d lights, %d fans, %d scenes, %d macros, %d watch, %d listen",
     Agent.port and "Listening" or "Not listening", tostring(Agent.port or Properties["Port"]),
-    count, count == 1 and "" or "s", #catalog.lights, #catalog.fans))
+    count, count == 1 and "" or "s", n(catalog.lights), n(catalog.fans),
+    n(catalog.scenes), n(catalog.macros), n(catalog.watch), n(catalog.listen)))
 end
 
 -- Server --------------------------------------------------------------------------
@@ -608,6 +622,13 @@ function OnDriverLateInit()
     random = math.random,
     log = log,
     pairingChanged = function() Agent.updateStatus() end,
+    -- {"type":"dev"} from a paired Mac → developer tools (developer builds only).
+    extension = function(msg)
+      if msg.type ~= "dev" then return nil end
+      if not Dev then return { ok = false, error = "This is a production build; developer tools aren't included." } end
+      log("dev " .. tostring(msg.op) .. (msg.fn and (" " .. tostring(msg.fn)) or ""))
+      return Dev.request(msg)
+    end,
   })
   Agent.refresh()
 
@@ -620,6 +641,19 @@ function OnDriverLateInit()
 
   startServer()
   update("Agent Version", Agent.versionText())
+  if Dev then
+    Dev.attach({
+      store = {
+        get = function(key) local ok, v = call("PersistGetValue", "hsl." .. key); return ok and v or nil end,
+        set = function(key, value) call("PersistSetValue", "hsl." .. key, value) end,
+      },
+      now = os.time, update = update, version = Agent.versionText(),
+    })
+    -- Handy names for `eval` while debugging.
+    DEV = { agent = Agent, project = Project, updates = Updates, core = Agent.core, json = json, call = call }
+    -- Turn Developer Mode off when its week is up, even if nobody uses it.
+    call("SetTimer", 60 * 60 * 1000, function() Dev.checkExpiry() end, true)
+  end
   Agent.scheduleUpdateChecks()
 end
 
@@ -632,6 +666,7 @@ function OnPropertyChanged(strName)
   if strName == "Port" then startServer()
   elseif strName == "Site Name" then Agent.updateStatus()
   elseif strName == "Automatic Update Check" then Agent.scheduleUpdateChecks()
+  elseif strName == "Developer Mode" and Dev then Dev.modeChanged()
   end
 end
 

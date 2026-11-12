@@ -55,8 +55,18 @@ updates from GitHub are installed by hand.
 | `emulator/` | Runs the real agent on a Mac behind a TCP port (`bridge.swift` + a fake Control4 API in `emulator.lua`) |
 | `scripts/package.sh` | Tests, then builds `build/HSLKeypad.c4z` |
 | `scripts/run-emulator.sh` | Starts the emulator for the Mac app to pair with |
+| `scripts/c4dev` | Developer commands to an agent (developer builds only) |
 | [PROTOCOL.md](PROTOCOL.md) | The app ↔ agent protocol |
 | [TESTING.md](TESTING.md) | First-load checklist for a real controller |
+
+## Developer builds
+
+`scripts/package.sh --dev` builds `build/HSLKeypad-dev.c4z` with `devtools.lua` and a
+**Developer Mode** property (it switches itself off after 7 days). With it on, a paired
+Mac running HSL Toolbar (Settings → Control4 → Developer relay) lets `scripts/c4dev` call
+Control4 APIs, run Lua and read logs on the controller — for working out undocumented
+calls. The normal `scripts/package.sh` leaves all of this out and verifies it; only
+production builds are released.
 
 Development needs macOS with the Xcode command-line tools and
 [LuaJIT](https://luajit.org) (`brew install luajit`).

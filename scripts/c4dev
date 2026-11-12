@@ -1,0 +1,13 @@
+#!/bin/zsh
+# c4dev — developer commands for an HSL Keypad agent (see scripts/c4dev.swift).
+#   scripts/c4dev list
+#   scripts/c4dev call GetVersionInfo
+#   scripts/c4dev eval 'return DEV.agent.macroAgent'
+set -euo pipefail
+ROOT=${0:A:h:h}
+BIN="$ROOT/build/c4dev"
+if [[ ! -x "$BIN" || "$ROOT/scripts/c4dev.swift" -nt "$BIN" ]]; then
+  mkdir -p "$ROOT/build"
+  swiftc -swift-version 5 -O -o "$BIN" "$ROOT/scripts/c4dev.swift"
+fi
+exec "$BIN" "$@"

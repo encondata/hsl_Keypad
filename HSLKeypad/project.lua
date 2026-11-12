@@ -108,6 +108,15 @@ function Project.probe(c4, deviceId, requests, tags)
   return {}, log
 end
 
+--- Records (id + name) stored in one project item's own data, e.g. scenes
+--- kept in the Advanced Lighting agent's item data.
+function Project.fromItemData(items, itemId, tags)
+  for _, item in ipairs(items or {}) do
+    if item.id == itemId then return Project.records(item.data, tags) end
+  end
+  return {}
+end
+
 --- Device IDs listed inside a room's project data under any of `tags`
 --- (e.g. <video_devices><id>12</id>…</video_devices>).
 function Project.roomDevices(roomData, tags)

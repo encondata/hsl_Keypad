@@ -17,6 +17,7 @@
 --   now() -> seconds, random(m, n) -> integer,
 --   log(message),                                      -- optional
 --   pairingChanged(),                                  -- optional: tokens changed
+--   extension(msg) -> reply table or nil,              -- optional: extra message types
 -- }
 
 local json = require("json")
@@ -24,7 +25,7 @@ local json = require("json")
 local Core = {}
 Core.__index = Core
 
-Core.VERSION = "0.0.3"
+Core.VERSION = "0.0.4"
 Core.MAX_LINE = 64 * 1024
 Core.MAX_BAD_CODES = 5      -- wrong pairing codes before a lockout
 Core.LOCKOUT_SECONDS = 60
@@ -159,6 +160,14 @@ function Core:line(handle, line)
   if kind == "catalog" then return self:sendCatalog(handle, msg.ref) end
   if kind == "watch" then return self:watch(handle, client, msg) end
   if kind == "command" then return self:command(handle, msg) end
+  if self.deps.extension then
+    local reply = self.deps.extension(msg)
+    if reply then
+      reply.type = reply.type or "devResult"
+      reply.ref = msg.ref
+      return self:send(handle, reply)
+    end
+  end
   self:log("unknown message type " .. tostring(kind))
 end
 

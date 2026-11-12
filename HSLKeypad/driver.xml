@@ -5,8 +5,8 @@
 	<model>HSL Keypad Agent</model>
 	<creator>HackSpaceLabs</creator>
 	<created>11/11/2026 20:00</created>
-	<modified>11/11/2026 22:00</modified>
-	<version>3</version>
+	<modified>11/12/2026 09:00</modified>
+	<version>4</version>
 	<control>lua_gen</control>
 	<driver>DriverWorks</driver>
 	<!-- Runs on OS 3.4.x and X4: no LuaSocket, no io.popen, bundled JSON. -->
@@ -41,6 +41,24 @@
 				<default>Daily</default>
 				<readonly>false</readonly>
 			</property>
+			<!-- DEV:BEGIN  (developer builds only; scripts/package.sh removes this block) -->
+			<property>
+				<name>Developer Mode</name>
+				<type>LIST</type>
+				<items>
+					<item>Off</item>
+					<item>On</item>
+				</items>
+				<default>Off</default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Developer Mode Until</name>
+				<type>STRING</type>
+				<default>Off</default>
+				<readonly>true</readonly>
+			</property>
+			<!-- DEV:END -->
 			<property>
 				<name>Site Name</name>
 				<type>STRING</type>

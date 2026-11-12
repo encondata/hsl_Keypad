@@ -50,3 +50,11 @@ check(byName == 100, "agent found by name")
 local id = Project.sourceId(14, 210)
 local room, device = Project.splitSourceId(id)
 check(id == 1400210 and room == 14 and device == 210, "source id round trip")
+
+-- Scenes/macros kept in an agent's own project item data
+local agentsXml = [[<item><id>100</id><name>Advanced Lighting</name><type>9</type><itemdata><scenes><scene><scene_id>5</scene_id><name>Evening</name></scene></scenes></itemdata></item><item><id>101</id><name>Macros</name><type>9</type><itemdata><macro id="9" name="Away"/></itemdata></item>]]
+local agentItems = Project.items(agentsXml)
+local fromData = Project.fromItemData(agentItems, 100, { "scene" })
+check(#fromData == 1 and fromData[1].id == 5 and fromData[1].name == "Evening", "scenes from the agent's item data (scene_id)")
+check(Project.fromItemData(agentItems, 101, { "macro" })[1].name == "Away", "macros from the agent's item data")
+check(#Project.fromItemData(agentItems, 999, { "scene" }) == 0, "unknown agent → nothing")

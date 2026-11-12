@@ -3,6 +3,7 @@
 -- the TCP port and timers; see the protocol at the top of bridge.swift.
 --
 -- Environment:
+--   HSL_EMU_PRODUCTION  act like a production package (no developer tools)
 --   HSL_EMU_PORT      agent Port property (default 8751)
 --   HSL_EMU_CODEFILE  write the current pairing code here (for tests)
 --   HSL_EMU_OS        reported OS version (default 3.4.3.0)
@@ -341,6 +342,10 @@ end
 
 -- Load the real agent -----------------------------------------------------------
 
+-- HSL_EMU_PRODUCTION=1 behaves like a production package (no devtools.lua).
+if os.getenv("HSL_EMU_PRODUCTION") then
+  package.preload["devtools"] = function() error("not in production packages") end
+end
 dofile(here .. "../HSLKeypad/driver.lua")
 if OnDriverInit then OnDriverInit("DIT_ADDED") end
 if OnDriverLateInit then OnDriverLateInit("DIT_ADDED") end
