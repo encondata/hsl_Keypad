@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>HSL Keypad</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; margin: 24px; color: #1d1d1f; line-height: 1.45; max-width: 720px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  h2 { font-size: 15px; margin-top: 22px; }
+  code { background: #f2f2f4; padding: 1px 4px; border-radius: 3px; }
+  td { padding: 3px 12px 3px 0; vertical-align: top; }
+  .muted { color: #6e6e73; }
+</style>
+</head>
+<body>
+<h1>HSL Keypad agent</h1>
+<p class="muted">HackSpaceLabs · for Control4 OS 3.4 and X4</p>
+
+<p>Lets the HSL Toolbar app on a Mac show a 12-button keypad for this project's lights and fans.
+The Mac assigns the buttons; this agent publishes what can be assigned, runs commands, and reports state.
+It works on the local network (or over a VPN to it).</p>
+
+<h2>Setup</h2>
+<ol>
+  <li>Add the agent (Agents → Add, or Driver → Add or Update Driver or Agent). One per project.</li>
+  <li>Optionally set <b>Site Name</b> (shown in the Mac app) and <b>Port</b> (default 8751).</li>
+  <li>On the Mac: HSL Toolbar → Settings → Control4 → add the controller's IP address and port,
+      enter the <b>Pairing Code</b> shown in this agent's properties, and click Pair &amp; Connect.</li>
+</ol>
+
+<h2>Properties</h2>
+<table>
+  <tr><td><b>Site Name</b></td><td>Name the Mac app shows for this site.</td></tr>
+  <tr><td><b>Port</b></td><td>TCP port the Mac app connects to.</td></tr>
+  <tr><td><b>Pairing Code</b></td><td>6-digit code for pairing a Mac. Five wrong attempts lock pairing for a minute.</td></tr>
+  <tr><td><b>Paired Macs</b></td><td>Macs that can connect.</td></tr>
+  <tr><td><b>Status</b></td><td>Listening state, connected Macs, and devices found.</td></tr>
+  <tr><td><b>Debug Mode</b></td><td>Logs activity to the Lua output window.</td></tr>
+</table>
+
+<h2>Actions</h2>
+<table>
+  <tr><td><b>New Pairing Code</b></td><td>Replaces the code (paired Macs stay paired).</td></tr>
+  <tr><td><b>Unpair All Macs</b></td><td>Disconnects and forgets every Mac.</td></tr>
+  <tr><td><b>Refresh Devices</b></td><td>Re-reads lights and fans now (it also happens automatically when the project changes).</td></tr>
+  <tr><td><b>Log Project Info</b></td><td>Prints what this controller exposes to the Lua output window, for troubleshooting.</td></tr>
+</table>
+
+<h2>Current version</h2>
+<p>Lights (on, off, toggle, level, press-and-hold dimming) and fans (on, off, toggle, speed).
+Advanced Lighting scenes and macros are planned.</p>
+</body>
+</html>

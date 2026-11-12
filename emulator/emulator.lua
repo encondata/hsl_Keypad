@@ -1,0 +1,314 @@
+-- A fake Control4 controller that runs the real HSL Keypad agent
+-- (../HSLKeypad/driver.lua) on a Mac. Started by bridge.swift, which owns
+-- the TCP port and timers; see the protocol at the top of bridge.swift.
+--
+-- Environment:
+--   HSL_EMU_PORT      agent Port property (default 8751)
+--   HSL_EMU_CODEFILE  write the current pairing code here (for tests)
+--   HSL_EMU_OS        reported OS version (default 3.4.3.0)
+--
+-- Console commands (type into the bridge): help, props, level <id> <0-100>,
+-- fan <id> <speed>, rename <id> <name>, add <light|fan> <roomId> <name>,
+-- remove <id>, action <ActionCommand>, set <Property> <value>
+
+local here = debug.getinfo(1, "S").source:match("^@(.*/)") or "./"
+package.path = here .. "../HSLKeypad/?.lua;" .. package.path
+local json = require("json")
+
+local out = io.stdout
+local function emit(line) out:write(line, "\n"); out:flush() end
+
+-- print() inside the agent goes to the bridge log, not the protocol stream.
+print = function(...)
+  local parts = {}
+  for i = 1, select("#", ...) do parts[#parts + 1] = tostring((select(i, ...))) end
+  emit("LOG " .. table.concat(parts, " "))
+end
+
+-- Simulated project ------------------------------------------------------------
+
+local rooms = { [12] = "Kitchen", [14] = "Living Room" }
+local devicesById = {}
+local function addDevice(id, kind, room, name, extra)
+  local d = { id = id, kind = kind, roomId = room, name = name, vars = {} }
+  if kind == "light" then
+    d.vars[1000] = { name = "LIGHT_STATE", value = "0" }
+    d.vars[1001] = { name = "Brightness Percent", value = "0" }
+    d.dimmer = extra ~= false
+  else
+    d.vars[1100] = { name = "Is On", value = "0" }
+    d.vars[1101] = { name = "Current Selected Speed", value = "0" }
+  end
+  devicesById[id] = d
+  return d
+end
+addDevice(345, "light", 12, "Cans")
+addDevice(346, "light", 12, "Pendants")
+addDevice(350, "light", 14, "Lamps", false)
+addDevice(402, "fan", 14, "Family Fan")
+local nextDeviceId = 500
+
+-- Properties from driver.xml defaults ----------------------------------------------
+
+Properties = {}
+do
+  local f = assert(io.open(here .. "../HSLKeypad/driver.xml"))
+  local xml = f:read("*a")
+  f:close()
+  for block in xml:gmatch("<property>(.-)</property>") do
+    local name = block:match("<name>(.-)</name>")
+    if name then Properties[name] = block:match("<default>(.-)</default>") or "" end
+  end
+end
+Properties["Port"] = os.getenv("HSL_EMU_PORT") or Properties["Port"]
+
+-- Fake C4 API ----------------------------------------------------------------------
+
+C4 = {}
+C4SystemEvents = { OnItemAdded = 1, OnItemRemoved = 2, OnItemNameChanged = 3, OnItemMoved = 12 }
+
+local persisted, listeners, systemEvents = {}, {}, {}
+local timers, nextTimer = {}, 1
+local serverPort
+local buffers = {}  -- handle -> partial data (real C4 delivers whole delimited messages)
+
+function C4:PersistGetValue(name) return persisted[name] end
+function C4:PersistSetValue(name, value) persisted[name] = value end
+
+function C4:UpdateProperty(name, value)
+  Properties[name] = value
+  if name == "Pairing Code" and os.getenv("HSL_EMU_CODEFILE") then
+    local f = io.open(os.getenv("HSL_EMU_CODEFILE"), "w")
+    if f then f:write(value); f:close() end
+  end
+  emit("LOG property " .. name .. " = " .. tostring(value))
+end
+
+function C4:SetTimer(ms, fn, repeating)
+  local id = tostring(nextTimer)
+  nextTimer = nextTimer + 1
+  local timer = { id = id }
+  function timer:Cancel()
+    timers[id] = nil
+    emit("CANCEL " .. id)
+  end
+  timers[id] = { fn = fn, ms = ms, repeating = repeating, obj = timer }
+  emit("TIMER " .. id .. " " .. math.max(0, math.floor(ms)))
+  return timer
+end
+
+function C4:CreateServer(port, delimiter)
+  serverPort = tonumber(port)
+  emit("LISTEN " .. serverPort)
+  return true
+end
+function C4:DestroyServer() serverPort = nil end
+function C4:ServerSend(handle, data) emit("SEND " .. handle .. " " .. json.encode(data)) end
+function C4:ServerCloseClient(handle) emit("CLOSE " .. handle) end
+
+function C4:GetDeviceID() return 9001 end
+function C4:GetVersionInfo() return { version = os.getenv("HSL_EMU_OS") or "3.4.3.0" } end
+function C4:GetControllerNetworkAddress() return "127.0.0.1" end
+function C4:GetProjectItems() return "<agents><agent><name>Advanced Lighting</name></agent></agents>" end
+function C4:RegisterSystemEvent(eventId, deviceId) systemEvents[eventId] = true end
+
+function C4:GetDevices(filter)
+  local files = (filter and filter.C4iNames) or ""
+  local result = {}
+  for id, d in pairs(devicesById) do
+    local file = d.kind == "light" and "light_v2.c4i" or "fan.c4i"
+    if files:find(d.kind == "light" and "light_v2" or "fan", 1, true) then
+      result[id] = { deviceName = d.name, driverFileName = file, roomId = d.roomId, roomName = rooms[d.roomId] }
+    end
+  end
+  return result
+end
+
+function C4:GetDeviceVariables(id)
+  local d = devicesById[id]
+  if not d then return nil end
+  local out = {}
+  for varId, v in pairs(d.vars) do out[varId] = { name = v.name, value = v.value } end
+  return out
+end
+
+function C4:GetDeviceVariable(id, varId)
+  local d = devicesById[id]
+  return d and d.vars[varId] and d.vars[varId].value or nil
+end
+
+local function later(ms, fn) return C4:SetTimer(ms, function() fn() end, false) end
+
+function C4:RegisterVariableListener(id, varId)
+  listeners[id .. ":" .. varId] = true
+  -- Docs: fires once right after registering with the current value.
+  later(0, function()
+    local value = C4:GetDeviceVariable(id, varId)
+    if value ~= nil and OnWatchedVariableChanged then OnWatchedVariableChanged(id, varId, value) end
+  end)
+end
+function C4:UnregisterVariableListener(id, varId) listeners[id .. ":" .. varId] = nil end
+
+local function setVar(d, varId, value)
+  value = tostring(value)
+  if d.vars[varId].value == value then return end
+  d.vars[varId].value = value
+  if listeners[d.id .. ":" .. varId] and OnWatchedVariableChanged then
+    OnWatchedVariableChanged(d.id, varId, value)
+  end
+end
+
+local function setLevel(d, level)
+  level = math.max(0, math.min(100, math.floor(level)))
+  if not d.dimmer then level = level > 0 and 100 or 0 end
+  setVar(d, 1001, level)
+  setVar(d, 1000, level > 0 and "1" or "0")
+end
+
+local function setFan(d, speed)
+  setVar(d, 1101, speed)
+  setVar(d, 1100, speed > 0 and "1" or "0")
+end
+
+-- light_v2 button handling: click = on/off, hold = ramp until released.
+local held = {}  -- deviceId -> { button, holdTimer, rampTimer }
+function C4:SendToDevice(id, command, params)
+  local d = devicesById[tonumber(id)]
+  if not d then return end
+  params = params or {}
+  if d.kind == "light" then
+    local level = tonumber(d.vars[1001].value) or 0
+    if command == "TOGGLE" then setLevel(d, level > 0 and 0 or 100)
+    elseif command == "SET_BRIGHTNESS_TARGET" then setLevel(d, tonumber(params.LIGHT_BRIGHTNESS_TARGET or params.LEVEL) or level)
+    elseif command == "SET_BRIGHTNESS_STOP" then
+      if held[d.id] and held[d.id].rampTimer then held[d.id].rampTimer:Cancel() end
+    elseif command == "BUTTON_ACTION" then
+      local button, action = tonumber(params.BUTTON_ID), tonumber(params.ACTION)
+      local h = held[d.id]
+      if action == 1 then  -- press: start ramping after a short hold
+        if h and h.rampTimer then h.rampTimer:Cancel() end
+        h = { button = button }
+        held[d.id] = h
+        h.holdTimer = later(300, function()
+          h.holdTimer = nil
+          h.rampTimer = C4:SetTimer(100, function()
+            local current = tonumber(d.vars[1001].value) or 0
+            setLevel(d, current + (button == 0 and 5 or -5))
+          end, true)
+        end)
+      elseif action == 2 then  -- release after click
+        if h and h.holdTimer then h.holdTimer:Cancel() end
+        if h and h.rampTimer then h.rampTimer:Cancel() end
+        held[d.id] = nil
+        setLevel(d, button == 0 and 100 or 0)
+      elseif action == 0 then  -- release after hold
+        if h and h.holdTimer then h.holdTimer:Cancel() end
+        if h and h.rampTimer then h.rampTimer:Cancel() end
+        held[d.id] = nil
+      end
+    end
+  else
+    local speed = tonumber(d.vars[1101].value) or 0
+    if command == "ON" then setFan(d, speed > 0 and speed or 2)
+    elseif command == "OFF" then setFan(d, 0)
+    elseif command == "TOGGLE" then setFan(d, speed > 0 and 0 or 2)
+    elseif command == "SET_SPEED" then setFan(d, tonumber(params.SPEED) or speed)
+    end
+  end
+end
+
+-- Load the real agent -----------------------------------------------------------
+
+dofile(here .. "../HSLKeypad/driver.lua")
+if OnDriverInit then OnDriverInit("DIT_ADDED") end
+if OnDriverLateInit then OnDriverLateInit("DIT_ADDED") end
+
+-- Console -------------------------------------------------------------------------
+
+local function projectChanged(eventName)
+  if OnSystemEvent and systemEvents[C4SystemEvents[eventName]] then OnSystemEvent(eventName) end
+end
+
+local function console(text)
+  local cmd, rest = text:match("^(%S+)%s*(.*)$")
+  if cmd == "help" then
+    print("commands: props | level <id> <0-100> | fan <id> <speed> | rename <id> <name> | add <light|fan> <roomId> <name> | remove <id> | action <Command> | set <Property> <value>")
+  elseif cmd == "props" then
+    local names = {}
+    for k in pairs(Properties) do names[#names + 1] = k end
+    table.sort(names)
+    for _, k in ipairs(names) do print(k .. " = " .. tostring(Properties[k])) end
+  elseif cmd == "level" then
+    local id, v = rest:match("^(%d+)%s+(%d+)$")
+    local d = devicesById[tonumber(id)]
+    if d and d.kind == "light" then setLevel(d, tonumber(v)) end
+  elseif cmd == "fan" then
+    local id, v = rest:match("^(%d+)%s+(%d+)$")
+    local d = devicesById[tonumber(id)]
+    if d and d.kind == "fan" then setFan(d, tonumber(v)) end
+  elseif cmd == "rename" then
+    local id, name = rest:match("^(%d+)%s+(.+)$")
+    local d = devicesById[tonumber(id)]
+    if d then d.name = name; projectChanged("OnItemNameChanged") end
+  elseif cmd == "add" then
+    local kind, room, name = rest:match("^(%a+)%s+(%d+)%s+(.+)$")
+    if kind == "light" or kind == "fan" then
+      addDevice(nextDeviceId, kind, tonumber(room), name)
+      print("added " .. kind .. " " .. nextDeviceId)
+      nextDeviceId = nextDeviceId + 1
+      projectChanged("OnItemAdded")
+    end
+  elseif cmd == "remove" then
+    local id = tonumber(rest)
+    if devicesById[id] then devicesById[id] = nil; projectChanged("OnItemRemoved") end
+  elseif cmd == "action" then
+    if ExecuteCommand then ExecuteCommand("LUA_ACTION", { ACTION = rest }) end
+  elseif cmd == "set" then
+    local name, value = rest:match("^(.-)%s*=%s*(.*)$")
+    if not name then name, value = rest:match("^(%S+)%s+(.*)$") end
+    if name then
+      Properties[name] = value
+      if OnPropertyChanged then OnPropertyChanged(name) end
+    end
+  else
+    print("unknown command: " .. text .. " (try help)")
+  end
+end
+
+-- Event loop: one line per event from the bridge ----------------------------------
+
+for line in io.stdin:lines() do
+  local kind, rest = line:match("^(%S+)%s*(.*)$")
+  local ok, err = pcall(function()
+    if kind == "CONNECT" then
+      local handle, address = rest:match("^(%d+)%s*(.*)$")
+      handle = tonumber(handle)
+      buffers[handle] = ""
+      OnServerConnectionStatusChanged(handle, serverPort, "ONLINE", address)
+    elseif kind == "DATA" then
+      local handle, payload = rest:match("^(%d+)%s+(.*)$")
+      handle = tonumber(handle)
+      buffers[handle] = (buffers[handle] or "") .. json.decode(payload)
+      while true do
+        local nl = buffers[handle]:find("\n", 1, true)
+        if not nl then break end
+        local message = buffers[handle]:sub(1, nl)  -- delimiter included, like C4
+        buffers[handle] = buffers[handle]:sub(nl + 1)
+        OnServerDataIn(handle, message, "127.0.0.1", serverPort)
+      end
+    elseif kind == "DISCONNECT" then
+      local handle = tonumber(rest)
+      buffers[handle] = nil
+      OnServerConnectionStatusChanged(handle, serverPort, "OFFLINE")
+    elseif kind == "FIRE" then
+      local t = timers[rest]
+      if t then
+        if t.repeating then emit("TIMER " .. rest .. " " .. math.max(1, math.floor(t.ms))) else timers[rest] = nil end
+        t.fn(t.obj)
+      end
+    elseif kind == "CONSOLE" then
+      console(rest)
+    end
+  end)
+  if not ok then emit("LOG emulator error: " .. tostring(err)) end
+end

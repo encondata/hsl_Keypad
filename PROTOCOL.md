@@ -1,0 +1,204 @@
+# HSL Keypad — app ↔ Control4 agent protocol (draft 3)
+
+The Mac app owns the keypad: pages, button assignments, labels and icons are
+stored in the app. On each Control4 project, the **HSL Keypad agent** (a `.c4z` added in
+Composer Pro and listed under **Agents**) **discovers everything assignable on its own and
+publishes it**; it runs commands and pushes state. It stores nothing about
+buttons. The app can be connected to **several controllers at once**.
+
+Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
+DriverWorks SDK before we rely on them.
+
+## Implementation status (agent 0.0.1)
+
+Source in `HSLKeypad/` (`driver.xml`, `driver.lua` = Control4 layer,
+`core.lua` = this protocol, `json.lua`); package with `scripts/package.sh`
+→ `build/HSLKeypad.c4z`. Tested on the Mac only: Lua unit tests
+(`luajit tests/run.lua`) and the real agent code running in the
+emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
+**Not yet loaded on a real controller.**
+
+- Done: pairing + lockout, tokens, welcome (`agentVersion`, `os`, `address`),
+  catalog of rooms/lights/fans with live updates, light and fan commands
+  (light on/off as keypad clicks, hold-to-ramp via `BUTTON_ACTION`), state via
+  variable listeners.
+- Not yet: Advanced Lighting scenes and macros (the docs don't say how an agent
+  lists them — run the agent's **Log Project Info** action on a controller and
+  send the output), dimmer vs switch detection (all lights report dimmable),
+  fan speed count (assumed 3), netmask (not exposed; the app uses the Mac's),
+  project name (the **Site Name** property instead).
+- To confirm on real controllers (3.4 and X4): `fan.c4i` as the fan proxy file
+  name, fan variable names, `OnServerDataIn` delivering whole lines, the icons
+  showing in Composer.
+
+## Agent
+
+- **A Control4 agent, not a room driver**: one per project, installed with
+  "Add or Update Driver or Agent" and shown on Composer's Agents tab, like
+  third-party agents already on the market. It is still a DriverWorks `.c4z`;
+  only its declaration differs. *(SDK: the exact `driver.xml` element that
+  makes a package an agent — from the DriverWorks XML Reference or an existing
+  agent's package.)*
+- No per-device setup in Composer. The only properties: Port, Pairing Code,
+  Paired Macs (revocable), Debug.
+- **Targets OS 3.4.x and X4 (OS 4) with one `.c4z`.** Rules that keep it
+  working on both: networking only through DriverWorks' own APIs
+  (`C4:CreateServer` and friends), **never LuaSocket** (X4 ships an updated
+  LuaSocket and Control4 says it will be removed) and **never `io.popen`**
+  (removed in X4); JSON via a small pure-Lua encoder bundled in the agent
+  unless the SDK confirms a built-in one on both; anything X4-only is
+  feature-detected at runtime, never required. `driver.xml` declares 3.4 as
+  the minimum OS. Test on both before calling it done.
+
+## Transport
+
+- TCP, LAN only — other sites over the site-to-site VPN. The agent listens on
+  its Port property (default **8751**).
+- Single-line JSON messages, newline-terminated (UTF-8).
+- `{"type":"ping"}` ↔ `{"type":"pong"}`; the app pings every 30 s, treats two
+  missed pongs as offline, and reconnects with backoff (1, 2, 5, 10, 30 s).
+- Requests carry `"ref"`; the reply echoes it.
+
+## Pairing and controller identity
+
+The agent creates a random **controller ID** (UUID) on first run and keeps it
+in persistent storage, so the app recognises the same controller whether it is
+reached on the LAN, over the VPN, or after an IP change.
+
+```json
+→ {"type":"hello","app":"HSLToolbar","version":"0.4.0","device":"Jon's MacBook Pro","pairingCode":"482913"}
+← {"type":"welcome","controllerId":"6f1c…","project":"Smith Residence",
+   "agentVersion":"0.0.1","token":"b9c1…","address":"192.168.1.50","netmask":"255.255.255.0"}
+```
+
+The app keys pages and tokens by `controllerId`; the token goes in the Keychain
+(shared "HSL Toolbar API keys" entry). Later connections send `"token"`
+instead of `"pairingCode"`. Bad code/token → `{"type":"error","code":"unauthorized","message":"…"}`,
+then the agent closes the connection — **only after that line has been sent**,
+otherwise the app just sees a dropped connection and keeps retrying. `address`/`netmask` are the controller's own
+LAN settings, used for "this network" detection (below). *(SDK: reading the
+controller's IP/netmask.)*
+
+## Published catalog (dynamic)
+
+Right after `welcome` the agent sends the full catalog unprompted, and sends it
+again (or a delta) whenever the project changes — devices added, removed,
+renamed, moved between rooms, scenes or macros edited. The app never has to ask,
+but may: `{"type":"catalog","ref":"1"}`.
+
+```json
+← {"type":"catalog","revision":17,
+   "rooms":  [{"id":12,"name":"Kitchen","floor":"Main"}],
+   "lights": [{"id":345,"room":12,"name":"Cans","dimmable":true,"color":false}],
+   "fans":   [{"id":402,"room":20,"name":"Family Fan","speeds":4}],
+   "scenes": [{"id":3,"name":"Movie Time"}],
+   "macros": [{"id":7,"name":"Goodnight"}]}
+
+← {"type":"catalogDelta","revision":18,
+   "upsert":{"lights":[{"id":351,"room":12,"name":"Island","dimmable":true,"color":false}]},
+   "remove":{"macros":[7]}}
+```
+
+- `revision` increases with every change; if the app sees a gap it requests the
+  full catalog.
+- Discovery *(SDK)*: lights = devices on the `light_v2` proxy; fans = `fan`
+  proxy; scenes from the Advanced Lighting agent; macros from the Macros agent;
+  change hooks via project/device events.
+- Removed items that are still on a button show as "missing" in the app rather
+  than disappearing silently.
+
+## State
+
+The app subscribes, per controller, to what is on its buttons (all pages):
+
+```json
+→ {"type":"watch","targets":[{"kind":"light","id":345},{"kind":"fan","id":402},{"kind":"scene","id":3}]}
+← {"type":"state","kind":"light","id":345,"on":true,"level":80}
+← {"type":"state","kind":"fan","id":402,"on":true,"speed":2}
+← {"type":"state","kind":"scene","id":3,"active":true}
+```
+
+`watch` replaces the previous subscription; the agent replies with current
+state for every target, then sends `state` on each change. Macros have no state.
+
+## Commands
+
+```json
+→ {"type":"command","ref":"9","kind":"light","id":345,"action":"toggle"}
+← {"type":"result","ref":"9","ok":true}
+```
+
+| kind  | action        | extra                         | Notes |
+|-------|---------------|-------------------------------|-------|
+| light | `on` `off` `toggle` | —                       | |
+| light | `level`       | `"value": 0–100`              | right-click slider, "Set level" click action |
+| light | `rampStart`   | `"direction": "up" \| "down"` | press-and-hold *(SDK)* |
+| light | `rampStop`    | —                             | on release; app sends after 15 s max as a safety |
+| fan   | `on` `off` `toggle` | —                       | |
+| fan   | `speed`       | `"value": 0…speeds`           | 0 = off |
+| scene | `activate` `toggle` `off` | —                 | |
+| macro | `run`         | —                             | |
+
+## App side: controllers, sites, pages
+
+**Controllers** (Settings → Control4): a list, each with name (from `project`),
+address, port, colour, and the `controllerId` learned at pairing. The app keeps
+a connection open to every controller that has buttons on any page, so the
+"All sites" page works.
+
+**Pages** belong to one controller (a *site page*) or to **All sites** (a
+*mixed page*). Every button stores its controller explicitly, so a mixed page
+can hold buttons from any site:
+
+```json
+{"pages":[
+  {"id":"main","name":"Main","site":"6f1c…","buttons":[
+    {"slot":1,"controller":"6f1c…","kind":"light","id":345,"label":"Kitchen Cans",
+     "icon":"light.recessed.fill","click":"toggle","hold":"dim","rightClick":"slider"}]},
+  {"id":"fav","name":"Favorites","site":null,"buttons":[
+    {"slot":2,"controller":"a90e…","kind":"light","id":88,"label":"Dock Lights","click":"toggle"}]}]}
+```
+
+**Which pages load first.** When the panel opens:
+
+1. If Settings → Control4 → *Open first* is set to a site, use that site.
+2. Otherwise (*Automatic*), find the controller on **this network**: any Mac
+   IPv4 address that is in the same subnet as a controller's
+   `address`/`netmask`. Its pages are listed first and its first page opens.
+3. Otherwise, open the last page used.
+
+The page menu groups pages by site — this network first, then other sites
+(reachable over VPN), offline sites dimmed, then *All sites* pages. On mixed
+pages each button shows a small site badge; buttons from an offline controller
+are dimmed and show their last known state.
+
+## Decisions so far
+
+- **Sites run a mix of OS 3.4.x and X4**, so both are required, not optional:
+  every release of the agent is tested on one 3.4 controller and one X4
+  controller before it's installed anywhere else. The `welcome` message adds
+  `"os":"3.4.3"` / `"4.0.x"` so the app can show each site's OS and we can
+  tell which side a bug report comes from. Don't upgrade the 3.4 test
+  controller to X4 — going back from 3.4.3+ needs a factory reset.
+
+- **This network = IP match only.** All sites share one Wi-Fi name, so SSIDs
+  are never used here. The app reads its own IPv4 addresses and netmasks and
+  compares them with each controller's `address`/`netmask` from `welcome`
+  (assume /24 until the agent has reported a netmask).
+- **Pages are dynamic.** Start with one page ("Main", on the first paired
+  controller). *New Page* asks for a name and a site: one controller, or
+  *All sites*. Pages can be renamed, reordered, moved between sites (buttons
+  from other controllers then turn "missing") and deleted.
+- **One Mac for now, sync later.** Pages live in one JSON file
+  (`~/Library/Application Support/HSL Toolbar/keypad.json`), every page and
+  button has a stable ID and a `modified` timestamp, so a later sync (iCloud
+  Drive or similar) can merge per page/button without a format change.
+  Tokens stay in the Keychain and are not synced.
+
+## Open questions
+
+- The exact `driver.xml` declaration that installs the package as an agent *(SDK)*.
+- Ramp support on `light_v2` *(SDK)*.
+- Delta vs always-full catalog — full is simpler; deltas matter only for very
+  large projects.
+- Should one Mac's pages sync to other Macs (iCloud or a file)? Later.

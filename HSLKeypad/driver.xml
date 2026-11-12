@@ -1,0 +1,93 @@
+<devicedata>
+	<copyright>Copyright 2026 HackSpaceLabs. All rights reserved.</copyright>
+	<manufacturer>HackSpaceLabs</manufacturer>
+	<name>HSL Keypad</name>
+	<model>HSL Keypad Agent</model>
+	<creator>HackSpaceLabs</creator>
+	<created>11/11/2026 20:00</created>
+	<modified>11/11/2026 20:00</modified>
+	<version>1</version>
+	<control>lua_gen</control>
+	<driver>DriverWorks</driver>
+	<!-- Runs on OS 3.4.x and X4: no LuaSocket, no io.popen, bundled JSON. -->
+	<minimum_os_version>3.4.0</minimum_os_version>
+	<!-- The HackSpaceLabs H, from www/icons (16×16 / 32×32 PNG at 96 DPI). -->
+	<small image_source="c4z">icons/device_sm.png</small>
+	<large image_source="c4z">icons/device_lg.png</large>
+	<config>
+		<!-- encryption="0" while in development; switch to "2" for release packaging. -->
+		<script file="driver.lua" encryption="0" jit="1"/>
+		<documentation file="www/documentation.html"/>
+		<properties>
+			<property>
+				<name>Site Name</name>
+				<type>STRING</type>
+				<default></default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Port</name>
+				<type>RANGED_INTEGER</type>
+				<minimum>1024</minimum>
+				<maximum>65535</maximum>
+				<default>8751</default>
+				<readonly>false</readonly>
+			</property>
+			<property>
+				<name>Pairing Code</name>
+				<type>STRING</type>
+				<default>------</default>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Paired Macs</name>
+				<type>STRING</type>
+				<default>None</default>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Status</name>
+				<type>STRING</type>
+				<default>Starting…</default>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Debug Mode</name>
+				<type>LIST</type>
+				<items>
+					<item>Off</item>
+					<item>On</item>
+				</items>
+				<default>Off</default>
+				<readonly>false</readonly>
+			</property>
+		</properties>
+		<commands>
+		</commands>
+		<actions>
+			<action>
+				<name>New Pairing Code</name>
+				<command>NewPairingCode</command>
+			</action>
+			<action>
+				<name>Unpair All Macs</name>
+				<command>UnpairAll</command>
+			</action>
+			<action>
+				<name>Refresh Devices</name>
+				<command>RefreshDevices</command>
+			</action>
+			<action>
+				<name>Log Project Info</name>
+				<command>LogProjectInfo</command>
+			</action>
+		</actions>
+	</config>
+	<agent>true</agent>
+	<combo>true</combo>
+	<proxies>
+		<proxy proxybindingid="5001" name="HSL Keypad" primary="True" image_source="c4z" small_image="icons/device_sm.png" large_image="icons/device_lg.png">hsl_keypad</proxy>
+	</proxies>
+	<events>
+	</events>
+</devicedata>
