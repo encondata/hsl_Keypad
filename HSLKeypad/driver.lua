@@ -12,6 +12,10 @@
 local json = require("json")
 local Core = require("core")
 local Project = require("project")
+local Updates = require("updates")
+
+local UPDATE_FIRST_CHECK_MS = 60 * 1000          -- a minute after startup
+local UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000   -- then daily
 
 local LIGHT_FILES = "light_v2.c4i,light_v2.c4z"
 local FAN_FILES = "fan.c4i,fan.c4z"            -- (SDK gap) confirm on a real project
@@ -35,6 +39,8 @@ Agent = Agent or {
   roomMedia = {},     -- roomId -> { audio = deviceId, video = deviceId }
   sceneEvents = {},   -- registered scene event IDs
   probes = {},        -- what discovery tried, for Log Project Info
+  update = nil,       -- { version, url } when GitHub has a newer release
+  updateTimers = {},  -- first-check and daily timers
 }
 
 -- Helpers ------------------------------------------------------------------------
@@ -453,7 +459,53 @@ function platform.info()
     os = type(version) == "table" and version.version or nil,
     address = address,
     netmask = nil,  -- (SDK gap) not exposed; the app falls back to the Mac's netmask
+    update = Agent.update,
   }
+end
+
+-- Version and updates ---------------------------------------------------------------
+
+--- "0.0.3 (build 3)": the release version plus driver.xml's <version>, which
+--- is what Composer compares when installing over an older package.
+function Agent.versionText()
+  local ok, build = call("GetDriverConfigInfo", "version")
+  build = ok and tostring(build or ""):match("%d+") or nil
+  return Core.VERSION .. (build and (" (build " .. build .. ")") or "")
+end
+
+--- Asks GitHub for a newer release; updates "Update Status" and tells Macs.
+function Agent.checkForUpdates()
+  update("Update Status", "Checking…")
+  Updates.check(Core.VERSION, function(result, err)
+    if not result then
+      update("Update Status", "Couldn't check: " .. tostring(err))
+      return
+    end
+    if result.available then
+      Agent.update = { version = result.latest.version, url = result.latest.url }
+      update("Update Status", result.latest.version .. " available — install it in Composer from " .. Updates.PAGE)
+      if Agent.core then
+        Agent.core:broadcast({ type = "update", version = Agent.update.version, url = Agent.update.url })
+      end
+    else
+      Agent.update = nil
+      update("Update Status", "Up to date (" .. Core.VERSION .. ")")
+    end
+  end)
+end
+
+--- A first check a minute after startup, then daily — unless turned off.
+function Agent.scheduleUpdateChecks()
+  for _, timer in pairs(Agent.updateTimers) do pcall(function() timer:Cancel() end) end
+  Agent.updateTimers = {}
+  if Properties["Automatic Update Check"] == "Off" then
+    if not Agent.update then update("Update Status", "Automatic checks off") end
+    return
+  end
+  local ok1, first = call("SetTimer", UPDATE_FIRST_CHECK_MS, function() Agent.checkForUpdates() end, false)
+  local ok2, daily = call("SetTimer", UPDATE_INTERVAL_MS, function() Agent.checkForUpdates() end, true)
+  if ok1 and first then Agent.updateTimers.first = first end
+  if ok2 and daily then Agent.updateTimers.daily = daily end
 end
 
 function platform.catalog()
@@ -567,6 +619,8 @@ function OnDriverLateInit()
   end
 
   startServer()
+  update("Agent Version", Agent.versionText())
+  Agent.scheduleUpdateChecks()
 end
 
 function OnSystemEvent(data)
@@ -577,6 +631,7 @@ end
 function OnPropertyChanged(strName)
   if strName == "Port" then startServer()
   elseif strName == "Site Name" then Agent.updateStatus()
+  elseif strName == "Automatic Update Check" then Agent.scheduleUpdateChecks()
   end
 end
 
@@ -591,6 +646,8 @@ function ExecuteCommand(strCommand, tParams)
     if Agent.refresh() then Agent.core:catalogChanged() end
   elseif action == "LogProjectInfo" then
     Agent.logProjectInfo()
+  elseif action == "CheckForUpdates" then
+    Agent.checkForUpdates()
   end
   Agent.updateStatus()
 end

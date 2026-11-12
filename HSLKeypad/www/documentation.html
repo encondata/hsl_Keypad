@@ -27,7 +27,7 @@
 <img class="logo" src="images/hackspacelabs-logo.png" alt="HackSpaceLabs — Build • Explore • Connect">
 
 <h1>HSL Keypad</h1>
-<p class="sub">Control4 agent · version 0.0.2 · OS 3.4.x and X4</p>
+<p class="sub">Control4 agent · version 0.0.3 · OS 3.4.x and X4</p>
 
 <p>HSL Keypad lets the <b>HSL Toolbar</b> Mac app show 12-button keypad pages for this project.
 The Mac assigns the buttons; this agent publishes everything that can be assigned, runs the
@@ -60,6 +60,9 @@ when the project changes (devices added, removed, renamed or moved).</p>
 
 <h2>Properties</h2>
 <table>
+  <tr><td>Agent Version</td><td>The installed version and build, e.g. “0.0.3 (build 3)”.</td></tr>
+  <tr><td>Update Status</td><td>Whether a newer HSL Keypad release is on GitHub.</td></tr>
+  <tr><td>Automatic Update Check</td><td>Daily (default) or Off. Checks a minute after startup, then once a day.</td></tr>
   <tr><td>Site Name</td><td>Name the Mac shows for this site (defaults to “Control4”).</td></tr>
   <tr><td>Port</td><td>TCP port the Mac connects to. Default 8751.</td></tr>
   <tr><td>Pairing Code</td><td>Six digits for pairing a Mac. Five wrong attempts lock pairing for a minute.</td></tr>
@@ -73,9 +76,17 @@ when the project changes (devices added, removed, renamed or moved).</p>
   <tr><td>New Pairing Code</td><td>Replaces the code. Macs already paired stay paired.</td></tr>
   <tr><td>Unpair All Macs</td><td>Disconnects and forgets every Mac. They must pair again.</td></tr>
   <tr><td>Refresh Devices</td><td>Re-reads the project now. This also happens automatically.</td></tr>
+  <tr><td>Check for Updates</td><td>Asks GitHub now whether a newer release exists.</td></tr>
   <tr><td>Log Project Info</td><td>Prints what this controller exposes (devices, rooms, scenes, macros,
       sources, and how each was found) to the Lua output window — useful for support.</td></tr>
 </table>
+
+<h2>Updates</h2>
+<p>The agent checks <b>github.com/encondata/hsl_Keypad/releases</b> and shows the result in
+<b>Update Status</b>; paired Macs show it too, with a download link. Control4 only installs updates
+automatically for drivers hosted in its own driver database, so install a new version yourself:
+download <code>HSLKeypad.c4z</code>, then Driver → <b>Add or Update Driver or Agent</b>. Its higher
+build number replaces the installed agent.</p>
 
 <h2>Troubleshooting</h2>
 <ul>
@@ -88,8 +99,8 @@ when the project changes (devices added, removed, renamed or moved).</p>
       automatically where the controller allows it.</li>
 </ul>
 
-<div class="note"><b>0.0.2 test build.</b> Lights and fans are confirmed on X4. Scenes, macros and
-Watch/Listen are new in this build and still being confirmed on real controllers.</div>
+<div class="note"><b>0.0.3 test build.</b> Lights and fans are confirmed on X4. Scenes, macros and
+Watch/Listen (new in 0.0.2) and update checks (new in 0.0.3) are still being confirmed on real controllers.</div>
 
 <p class="foot">© 2026 HackSpaceLabs · Build • Explore • Connect</p>
 </div>

@@ -24,7 +24,7 @@ local json = require("json")
 local Core = {}
 Core.__index = Core
 
-Core.VERSION = "0.0.2"
+Core.VERSION = "0.0.3"
 Core.MAX_LINE = 64 * 1024
 Core.MAX_BAD_CODES = 5      -- wrong pairing codes before a lockout
 Core.LOCKOUT_SECONDS = 60
@@ -202,6 +202,7 @@ function Core:hello(handle, client, msg)
     token = client.token,
     address = info.address,
     netmask = info.netmask,
+    update = info.update,  -- { version, url } when a newer release exists
   })
   self:sendCatalog(handle)
 end
@@ -226,6 +227,13 @@ end
 
 function Core:sendCatalog(handle, ref)
   self:send(handle, self:catalogMessage(ref))
+end
+
+--- Sends a message to every paired, connected Mac.
+function Core:broadcast(message)
+  for handle, client in pairs(self.clients) do
+    if client.authed then self:send(handle, message) end
+  end
 end
 
 --- The project changed: bump the revision and send everyone the full catalog.

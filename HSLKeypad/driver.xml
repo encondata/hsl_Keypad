@@ -5,8 +5,8 @@
 	<model>HSL Keypad Agent</model>
 	<creator>HackSpaceLabs</creator>
 	<created>11/11/2026 20:00</created>
-	<modified>11/11/2026 21:00</modified>
-	<version>2</version>
+	<modified>11/11/2026 22:00</modified>
+	<version>3</version>
 	<control>lua_gen</control>
 	<driver>DriverWorks</driver>
 	<!-- Runs on OS 3.4.x and X4: no LuaSocket, no io.popen, bundled JSON. -->
@@ -19,6 +19,28 @@
 		<script file="driver.lua" encryption="0" jit="1"/>
 		<documentation file="www/documentation.html"/>
 		<properties>
+			<property>
+				<name>Agent Version</name>
+				<type>STRING</type>
+				<default></default>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Update Status</name>
+				<type>STRING</type>
+				<default>Not checked yet</default>
+				<readonly>true</readonly>
+			</property>
+			<property>
+				<name>Automatic Update Check</name>
+				<type>LIST</type>
+				<items>
+					<item>Daily</item>
+					<item>Off</item>
+				</items>
+				<default>Daily</default>
+				<readonly>false</readonly>
+			</property>
 			<property>
 				<name>Site Name</name>
 				<type>STRING</type>
@@ -76,6 +98,10 @@
 			<action>
 				<name>Refresh Devices</name>
 				<command>RefreshDevices</command>
+			</action>
+			<action>
+				<name>Check for Updates</name>
+				<command>CheckForUpdates</command>
 			</action>
 			<action>
 				<name>Log Project Info</name>

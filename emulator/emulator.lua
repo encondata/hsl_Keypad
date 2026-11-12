@@ -61,11 +61,12 @@ local deviceEvents = {}
 -- Properties from driver.xml defaults ----------------------------------------------
 
 Properties = {}
+local driverXml
 do
   local f = assert(io.open(here .. "../HSLKeypad/driver.xml"))
-  local xml = f:read("*a")
+  driverXml = f:read("*a")
   f:close()
-  for block in xml:gmatch("<property>(.-)</property>") do
+  for block in driverXml:gmatch("<property>(.-)</property>") do
     local name = block:match("<name>(.-)</name>")
     if name then Properties[name] = block:match("<default>(.-)</default>") or "" end
   end
@@ -117,6 +118,38 @@ function C4:ServerSend(handle, data) emit("SEND " .. handle .. " " .. json.encod
 function C4:ServerCloseClient(handle) emit("CLOSE " .. handle) end
 
 function C4:GetDeviceID() return 9001 end
+
+-- driver.xml root-level values, like the real GetDriverConfigInfo.
+function C4:GetDriverConfigInfo(tag)
+  return driverXml:match("<" .. tag .. ">(.-)</" .. tag .. ">")
+end
+
+-- C4:url() with a canned GitHub releases reply. HSL_EMU_LATEST sets the newest
+-- published version (default 0.0.9); "offline" simulates a network error.
+function C4:url()
+  local transfer = {}
+  function transfer:OnDone(fn) self.done = fn; return self end
+  function transfer:SetOptions() return self end
+  function transfer:Get(url, headers)
+    local latest = os.getenv("HSL_EMU_LATEST") or "0.0.9"
+    C4:SetTimer(50, function()
+      if latest == "offline" then
+        self.done(self, {}, 6, "Couldn't resolve host name")
+        return
+      end
+      local base = "https://github.com/encondata/hsl_Keypad/releases"
+      local body = json.encode(json.array({
+        { tag_name = "v" .. latest, name = "HSL Keypad " .. latest, draft = false, prerelease = true,
+          html_url = base .. "/tag/v" .. latest,
+          assets = json.array({ { name = "HSLKeypad.c4z", browser_download_url = base .. "/download/v" .. latest .. "/HSLKeypad.c4z" } }) },
+        { tag_name = "v0.0.1", draft = false, html_url = base .. "/tag/v0.0.1", assets = json.array({}) },
+      }))
+      self.done(self, { { code = 200, body = body, headers = {} } }, 0, nil)
+    end, false)
+    return self
+  end
+  return transfer
+end
 function C4:GetVersionInfo() return { version = os.getenv("HSL_EMU_OS") or "3.4.3.0" } end
 function C4:GetControllerNetworkAddress() return "127.0.0.1" end
 local function xmlEscape(s) return (s:gsub("&", "&amp;"):gsub("<", "&lt;")) end

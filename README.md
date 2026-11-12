@@ -12,9 +12,9 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.2 test build.** Lights and fans are confirmed on a Control4 X4
-> controller. Scenes, macros and Watch/Listen are new in 0.0.2 and tested
-> against the emulator only — see [TESTING.md](TESTING.md).
+> **Status: 0.0.3 test build.** Lights and fans are confirmed on a Control4 X4
+> controller. Scenes, macros and Watch/Listen (0.0.2) and update checks (0.0.3)
+> are tested against the emulator only — see [TESTING.md](TESTING.md).
 
 ## Install
 
@@ -24,7 +24,7 @@ publishes what can be assigned, runs commands, and reports state live.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
 
-## What 0.0.2 does
+## What 0.0.3 does
 
 | | |
 |---|---|
@@ -34,7 +34,8 @@ publishes what can be assigned, runs commands, and reports state live.
 | Macros | run |
 | Watch / Listen | select a room's source, toggle (selected → room off), room off, live state |
 | Project changes | devices added, removed, renamed or moved are republished automatically |
-| Composer | properties: Site Name, Port, Pairing Code, Paired Macs, Status, Debug Mode · actions: New Pairing Code, Unpair All Macs, Refresh Devices, Log Project Info |
+| Updates | checks GitHub daily (and on demand) for a newer release; shown in Composer and in the Mac app with a download link |
+| Composer | properties: Agent Version, Update Status, Automatic Update Check, Site Name, Port, Pairing Code, Paired Macs, Status, Debug Mode · actions: New Pairing Code, Unpair All Macs, Refresh Devices, Check for Updates, Log Project Info |
 
 Not yet: dimmer-vs-switch detection and fan speed counts. Scenes, macros and
 sources are *listed* using request names Control4 doesn't document; if any are
@@ -49,7 +50,7 @@ updates from GitHub are installed by hand.
 
 | Path | What |
 |---|---|
-| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `project.lua` (discovery), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation with the logo) |
+| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `project.lua` (discovery), `updates.lua` (GitHub release check), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation with the logo) |
 | `tests/` | Lua tests — `luajit tests/run.lua` |
 | `emulator/` | Runs the real agent on a Mac behind a TCP port (`bridge.swift` + a fake Control4 API in `emulator.lua`) |
 | `scripts/package.sh` | Tests, then builds `build/HSLKeypad.c4z` |

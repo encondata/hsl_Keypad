@@ -1,7 +1,7 @@
 | watch, listen | `select`  | —                             | `SELECT_VIDEO_DEVICE` / `SELECT_AUDIO_DEVICE` in that room |
 | watch, listen | `roomOff` | —                             | `ROOM_OFF` for that room |
 | watch, listen | `toggle`  | —                             | room off if this source is active, else select it |
-# HSL Keypad — app ↔ Control4 agent protocol (draft 4)
+# HSL Keypad — app ↔ Control4 agent protocol (draft 5)
 
 The Mac app owns the keypad: pages, button assignments, labels and icons are
 stored in the app. On each Control4 project, the **HSL Keypad agent** (a `.c4z` added in
@@ -12,7 +12,7 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.2)
+## Implementation status (agent 0.0.3)
 
 Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
 `project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
@@ -28,6 +28,11 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   documented calls; *listing* scenes, macros and room sources uses undocumented
   `SendUIRequest` names and project XML, tried in order (see `project.lua`).
   **Log Project Info** prints every attempt and reply.
+- **New in 0.0.3:** **Agent Version** property (`Core.VERSION` + `driver.xml`
+  build via `C4:GetDriverConfigInfo`), GitHub update check (`updates.lua`,
+  `C4:url()`), **Update Status** / **Automatic Update Check** properties,
+  **Check for Updates** action; the app is told in `welcome.update` and live
+  `update` messages.
 - Not yet: dimmer vs switch detection (all lights report dimmable), fan speed
   count (assumed 3), netmask (not exposed; the app uses the Mac's), project
   name (the **Site Name** property instead), self-update (Control4 only
@@ -72,6 +77,10 @@ reached on the LAN, over the VPN, or after an IP change.
 ← {"type":"welcome","controllerId":"6f1c…","project":"Smith Residence",
    "agentVersion":"0.0.1","token":"b9c1…","address":"192.168.1.50","netmask":"255.255.255.0"}
 ```
+
+`welcome` also carries `"os"`, and `"update":{"version":"0.0.4","url":"https://github.com/…/releases/tag/v0.0.4"}`
+when the agent knows of a newer release; when it finds one later it sends
+`{"type":"update","version":…,"url":…}` to every connected Mac.
 
 The app keys pages and tokens by `controllerId`; the token goes in the Keychain
 (shared "HSL Toolbar API keys" entry). Later connections send `"token"`
