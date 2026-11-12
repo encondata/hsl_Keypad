@@ -51,11 +51,16 @@ end
 function Project.records(xml, tags)
   local out, seen = {}, {}
   if type(xml) ~= "string" then return out end
-  for _, tag in ipairs(tags or { "scene", "macro", "device", "source", "item", "entry" }) do
+  for _, tag in ipairs(tags or { "scene_info", "scene", "macro", "device", "source", "item", "entry" }) do
     for block in xml:gmatch("<" .. tag .. "[%s>].-</" .. tag .. ">") do
       local id = tonumber(field(block, "id", "scene_id", "sceneid", "SCENE_ID", "macro_id", "deviceid", "device_id"))
       local name = field(block, "name", "scene_name", "NAME", "display_name")
-      if id and name and not seen[id] then seen[id] = true; out[#out + 1] = { id = id, name = name } end
+      if id and name and not seen[id] then
+        seen[id] = true
+        local active = field(block, "is_active")
+        if active then active = active:lower() == "true" end
+        out[#out + 1] = { id = id, name = name, active = active }
+      end
     end
     for attrs in xml:gmatch("<" .. tag .. "(%s[^>]-)/?>") do
       local id = tonumber(attrs:match('%sid="(%d+)"'))
@@ -69,12 +74,10 @@ end
 -- Discovery --------------------------------------------------------------------------
 
 Project.ROOM_TYPE = 8
-Project.AL_FILES = { "control4_agent_advanced_lighting.c4i", "advanced_lighting.c4i" }
+Project.AL_FILES = { "control4_agent_adv_lighting.c4i", "control4_agent_advanced_lighting.c4i", "advanced_lighting.c4i" }
 Project.MACRO_FILES = { "control4_agent_macros.c4i", "macros.c4i" }
-Project.SCENE_REQUESTS = { "GET_SCENES", "GET_ALL_SCENES", "GET_SCENE_LIST" }
-Project.MACRO_REQUESTS = { "GET_MACROS", "GET_ALL_MACROS", "GET_MACRO_LIST" }
-Project.WATCH_REQUESTS = { "GET_VIDEO_DEVICES", "GET_WATCH_DEVICES" }
-Project.LISTEN_REQUESTS = { "GET_AUDIO_DEVICES", "GET_LISTEN_DEVICES" }
+Project.SCENE_REQUESTS = { "GET_SCENE_LIST", "GET_SCENES", "GET_ALL_SCENES" }  -- X4: GET_SCENE_LIST
+Project.MACRO_REQUESTS = { "GET_MACROS", "GET_ALL_MACROS", "GET_MACRO_LIST" }  -- X4: GET_MACROS
 Project.ROOM_AUDIO_VAR, Project.ROOM_VIDEO_VAR = 1001, 1002
 
 --- Finds an agent's device ID by its driver file, then by name in the
@@ -117,22 +120,38 @@ function Project.fromItemData(items, itemId, tags)
   return {}
 end
 
---- Device IDs listed inside a room's project data under any of `tags`
---- (e.g. <video_devices><id>12</id>…</video_devices>).
-function Project.roomDevices(roomData, tags)
-  local ids, seen = {}, {}
-  for _, tag in ipairs(tags) do
-    for inner in (roomData or ""):gmatch("<" .. tag .. "[^>]*>(.-)</" .. tag .. ">") do
-      for id in inner:gmatch("<id>(%d+)</id>") do
-        id = tonumber(id)
-        if not seen[id] then seen[id] = true; ids[#ids + 1] = id end
-      end
-      for id in inner:gmatch('id="(%d+)"') do
-        id = tonumber(id)
-        if not seen[id] then seen[id] = true; ids[#ids + 1] = id end
-      end
+--- The sources a room shows in Navigator, in Navigator's order. Room project
+--- data (escaped XML in the item's <state>) lists every device under
+--- <OrderedWatchList> / <OrderedListenList> as
+--- <device><deviceid>N</deviceid><order>K</order><hidden>0|1</hidden></device>;
+--- the visible ones (hidden 0) are the room's Watch / Listen sources.
+--- Device IDs near 2^32 are Navigator's built-in entries, not devices.
+--- Rooms hidden in Navigator (<RoomHidden>True) publish no sources.
+Project.WATCH_LIST, Project.LISTEN_LIST = "OrderedWatchList", "OrderedListenList"
+function Project.roomHidden(roomData)
+  local v = unescape(roomData or ""):match("<RoomHidden>(%w+)</RoomHidden>")
+  return v ~= nil and (v:lower() == "true" or v == "1")
+end
+function Project.orderedSources(roomData, listTag)
+  local state = unescape(roomData or "")
+  if Project.roomHidden(state) then return {} end
+  local inner = state:match("<" .. listTag .. ">(.-)</" .. listTag .. ">")
+  local out = {}
+  if not inner then return out end
+  for block in inner:gmatch("<device>(.-)</device>") do
+    local id = tonumber(block:match("<deviceid>(%d+)</deviceid>"))
+    local hidden = block:match("<hidden>(%w+)</hidden>")
+    local order = tonumber(block:match("<order>(%d+)</order>")) or math.huge
+    if id and id < 100000 and hidden ~= "1" and hidden ~= "True" then
+      out[#out + 1] = { id = id, order = order, seq = #out }
     end
   end
+  table.sort(out, function(a, b)
+    if a.order ~= b.order then return a.order < b.order end
+    return a.seq < b.seq
+  end)
+  local ids = {}
+  for i, s in ipairs(out) do ids[i] = s.id end
   return ids
 end
 

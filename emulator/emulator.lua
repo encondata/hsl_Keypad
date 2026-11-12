@@ -153,42 +153,64 @@ function C4:url()
 end
 function C4:GetVersionInfo() return { version = os.getenv("HSL_EMU_OS") or "3.4.3.0" } end
 function C4:GetControllerNetworkAddress() return "127.0.0.1" end
-local function xmlEscape(s) return (s:gsub("&", "&amp;"):gsub("<", "&lt;")) end
+local function xmlEscape(s) return (s:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")) end
+-- A room's project state, shaped like X4's: escaped XML in <state>, with every
+-- device in each Ordered*List and a hidden flag (0 = shown in Navigator), plus
+-- Navigator's built-in entries (IDs near 2^32).
+local function roomState(watch, listen)
+  local function list(tag, shown)
+    local parts = {}
+    for _, id in ipairs({ 200, 201, 210, 211, 4294966295 }) do
+      local order = 4294967295
+      for i, s in ipairs(shown) do if s == id then order = i end end
+      local hidden = (order == 4294967295 and id < 100000) and 1 or 0
+      parts[#parts + 1] = "<device><deviceid>" .. id .. "</deviceid><order>" .. order .. "</order><hidden>" .. hidden .. "</hidden></device>"
+    end
+    return "<" .. tag .. ">" .. table.concat(parts) .. "</" .. tag .. ">"
+  end
+  local xml = "<RoomDeviceData><RoomDeviceDataVersion>1.0.0.3</RoomDeviceDataVersion>"
+    .. list("OrderedWatchList", watch) .. list("OrderedListenList", listen)
+    .. "<OrderedMovieList><device><deviceid>201</deviceid><order>1</order><hidden>0</hidden></device></OrderedMovieList>"
+    .. "</RoomDeviceData>"
+  return "<state>" .. xmlEscape(xml) .. "</state>"
+end
 function C4:GetProjectItems(filter)
   if filter == "LOCATIONS" then
-    -- Kitchen answers SendUIRequest; Living Room only lists sources in its data.
+    local function room(id, name, watch, listen)
+      return "<item><id>" .. id .. "</id><name>" .. name .. "</name><type>8</type><itemdata><config_data_file>roomdevice.c4i</config_data_file></itemdata>"
+        .. roomState(watch, listen) .. "</item>"
+    end
     return "<item><id>1</id><name>Home</name><type>2</type><itemdata/><subitems>"
-      .. "<item><id>12</id><name>Kitchen</name><type>8</type><itemdata/></item>"
-      .. "<item><id>14</id><name>Living Room</name><type>8</type><itemdata><video_devices><id>201</id></video_devices><audio_devices><id>211</id></audio_devices></itemdata></item>"
-      .. "<item><id>16</id><name>Office</name><type>8</type><itemdata/></item>"
+      .. room(12, "Kitchen", { 200 }, { 210 })
+      .. room(14, "Living Room", { 201 }, { 211 })
+      .. room(16, "Office", {}, {})
       .. "</subitems></item>"
   end
-  return "<item><id>100</id><name>Advanced Lighting</name><type>9</type><itemdata/></item>"
-    .. "<item><id>101</id><name>Macros</name><type>9</type><itemdata/></item>"
+  return "<item><id>100</id><name>Advanced Lighting</name><type>9</type><itemdata><config_data_file>control4_agent_adv_lighting.c4i</config_data_file></itemdata></item>"
+    .. "<item><id>101</id><name>Macros</name><type>9</type><itemdata><config_data_file>control4_agent_macros.c4i</config_data_file></itemdata></item>"
 end
 
 function C4:GetDevicesByC4iName() return {} end  -- force the by-name fallback
 
-function C4:GetDeviceDisplayName(id)
-  id = tonumber(id)
-  return mediaNames[id] or (devicesById[id] and devicesById[id].name) or ("Device " .. tostring(id))
-end
+-- X4 returns nothing here; the agent must name sources via GetDevices.
+function C4:GetDeviceDisplayName(id) end
 
 function C4:SendUIRequest(id, request)
   id = tonumber(id)
-  if id == AL_AGENT and request == "GET_SCENES" then
+  if id == AL_AGENT and request == "GET_SCENE_LIST" then  -- X4's reply shape
     local parts = {}
-    for sid, s in pairs(scenes) do parts[#parts + 1] = "<scene><id>" .. sid .. "</id><name>" .. xmlEscape(s.name) .. "</name></scene>" end
-    return "<scenes>" .. table.concat(parts) .. "</scenes>"
+    for sid, s in pairs(scenes) do
+      parts[#parts + 1] = "<scene_info><scene_id>" .. sid .. "</scene_id><name>" .. xmlEscape(s.name) .. "</name><ramp_capable>True</ramp_capable><is_active>"
+        .. (s.active and "True" or "False") .. "</is_active></scene_info>"
+    end
+    return "<scene_list>" .. table.concat(parts) .. "</scene_list>"
   end
-  if id == MACRO_AGENT and request == "GET_ALL_MACROS" then  -- the 2nd name the agent tries
+  if id == MACRO_AGENT and request == "GET_MACROS" then
     local parts = {}
-    for mid, name in pairs(macros) do parts[#parts + 1] = '<macro id="' .. mid .. '" name="' .. xmlEscape(name) .. '"/>' end
+    for mid, name in pairs(macros) do parts[#parts + 1] = "<macro><id>" .. mid .. "</id><name>" .. xmlEscape(name) .. "</name></macro>" end
     return "<macros>" .. table.concat(parts) .. "</macros>"
   end
-  if id == 12 and request == "GET_VIDEO_DEVICES" then return "<devices><device><id>200</id><name>Apple TV</name></device></devices>" end
-  if id == 12 and request == "GET_AUDIO_DEVICES" then return '<devices><device id="210" name="Spotify"/></devices>' end
-  return "<error>unknown request</error>"
+  return nil  -- X4 answers unknown requests with nothing
 end
 
 function C4:RegisterDeviceEvent(id, eventId) deviceEvents[tonumber(id) .. ":" .. tonumber(eventId)] = true end
@@ -197,6 +219,14 @@ function C4:RegisterSystemEvent(eventId, deviceId) systemEvents[eventId] = true 
 function C4:GetDevices(filter)
   local files = (filter and filter.C4iNames) or ""
   local result = {}
+  if filter and filter.DeviceIds then
+    for id in tostring(filter.DeviceIds):gmatch("%d+") do
+      id = tonumber(id)
+      local name = mediaNames[id] or (devicesById[id] and devicesById[id].name)
+      if name then result[id] = { deviceName = name } end
+    end
+    return result
+  end
   for id, d in pairs(devicesById) do
     local file = d.kind == "light" and "light_v2.c4i" or "fan.c4i"
     if files:find(d.kind == "light" and "light_v2" or "fan", 1, true) then
@@ -285,7 +315,7 @@ function C4:SendToDevice(id, command, params)
     return
   end
   if id == MACRO_AGENT then
-    local macroId = tonumber(params.MACRO_ID or params.ID)
+    local macroId = tonumber(params.id)  -- X4 only accepts lowercase id
     if command == "EXECUTE_MACRO" and macros[macroId] then print("macro " .. macroId .. " (" .. macros[macroId] .. ") ran") end
     return
   end

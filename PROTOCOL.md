@@ -12,7 +12,7 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.4)
+## Implementation status (agent 0.0.5)
 
 Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
 `project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
@@ -30,6 +30,16 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   **Log Project Info** prints every attempt and reply.
 - **On X4 (0.0.3):** 31 rooms, 46 lights, 4 fans, 14 macros listed; 0 scenes and
   0 Watch/Listen sources; running a macro (`EXECUTE_MACRO`) didn't work.
+- **Confirmed on X4 (0.0.5, via the developer tools):** scenes — `SendUIRequest(AL agent,
+  "GET_SCENE_LIST")` → `<scene_list><scene_info><scene_id>…<name>…<is_active>`; AL events
+  are 5·id (activated), 5·id+1 (deactivated); `ACTIVATE_SCENE {SCENE_ID}` (as Composer
+  programs it). Macros — `GET_MACROS` → `<macros><macro><id>…<name>`; run with
+  `EXECUTE_MACRO {id}` (lowercase, INTEGER; macro id = Macros agent event id).
+  Watch / Listen — each room item's `<state>` (escaped XML) has `<OrderedWatchList>` /
+  `<OrderedListenList>` of `<device><deviceid><order><hidden>`; visible entries (hidden 0)
+  are the sources, IDs near 2^32 are Navigator built-ins, rooms with `<RoomHidden>True`
+  are skipped. Names come from `GetDevices{DeviceIds}` (`GetDeviceDisplayName` returns
+  nothing on X4). On a test project: 12 scenes, 15 macros, 20 watch / 79 listen.
 - **New in 0.0.4 (developer build):** `devtools.lua` — `{"type":"dev"}` with ops
   `ping`, `call` (any C4 API), `eval` (Lua), `logs`; only for paired Macs, only
   with **Developer Mode** On (7-day limit). The Mac app relays it from

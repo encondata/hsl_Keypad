@@ -1,18 +1,44 @@
 local Project = require("project")
 
 -- Project items (GetProjectItems XML)
+-- Room state as X4 stores it: escaped XML; every device in each Ordered*List
+-- with a hidden flag, plus Navigator's built-in entries (IDs near 2^32).
+local function dev(id, order, hidden)
+  return "&lt;device&gt;&lt;deviceid&gt;" .. id .. "&lt;/deviceid&gt;&lt;order&gt;" .. order
+    .. "&lt;/order&gt;&lt;hidden&gt;" .. hidden .. "&lt;/hidden&gt;&lt;/device&gt;"
+end
 local xml = [[
 <item><id>1</id><name>Home</name><type>2</type><itemdata/><subitems>
-  <item><id>12</id><name>Kitchen &amp; Dining</name><type>8</type><itemdata><video_devices><id>200</id><id>201</id></video_devices></itemdata></item>
-  <item><id>14</id><name>Living Room</name><type>8</type><itemdata><audio_devices><device id="210"/></audio_devices></itemdata></item>
+  <item><id>12</id><name>Kitchen &amp; Dining</name><type>8</type><itemdata><config_data_file>roomdevice.c4i</config_data_file></itemdata><state>&lt;RoomDeviceData&gt;&lt;OrderedWatchList&gt;]]
+  .. dev(209, 4294967295, 1) .. dev(224, 2, 0) .. dev(217, 1, 0) .. dev(4294966295, 0, 0)
+  .. [[&lt;/OrderedWatchList&gt;&lt;OrderedListenList&gt;]] .. dev(268, 4294967295, 0) .. dev(224, 4294967295, 0)
+  .. [[&lt;/OrderedListenList&gt;&lt;/RoomDeviceData&gt;</state></item>
+  <item><id>14</id><name>Living Room</name><type>8</type><itemdata/><state>&lt;RoomDeviceData/&gt;</state></item>
 </subitems></item>]]
 local items = Project.items(xml)
 check(#items == 3 and items[2].id == 12 and items[2].type == 8, "project items parsed in order")
 check(items[2].name == "Kitchen & Dining", "item names unescaped")
-check(#Project.roomDevices(items[2].data, { "video_devices" }) == 2, "room video devices from <id> children")
-check(Project.roomDevices(items[3].data, { "audio_devices" })[1] == 210, "room audio devices from id attributes")
-check(#Project.roomDevices(items[3].data, { "video_devices" }) == 0, "no video devices listed")
+local watch = Project.orderedSources(items[2].data, Project.WATCH_LIST)
+check(#watch == 2 and watch[1] == 217 and watch[2] == 224, "watch sources: visible only, Navigator order, no built-ins")
+local listen = Project.orderedSources(items[2].data, Project.LISTEN_LIST)
+check(#listen == 2 and listen[1] == 268 and listen[2] == 224, "unordered sources keep document order")
+check(#Project.orderedSources(items[3].data, Project.WATCH_LIST) == 0, "room with no lists → no sources")
+check(#Project.orderedSources(nil, Project.WATCH_LIST) == 0, "no room data → no sources")
+local hiddenRoom = "<state>&lt;RoomDeviceData&gt;&lt;RoomHidden&gt;True&lt;/RoomHidden&gt;&lt;OrderedWatchList&gt;" .. dev(217, 1, 0) .. "&lt;/OrderedWatchList&gt;&lt;/RoomDeviceData&gt;</state>"
+check(Project.roomHidden(hiddenRoom) and #Project.orderedSources(hiddenRoom, Project.WATCH_LIST) == 0, "rooms hidden in Navigator publish no sources")
+check(not Project.roomHidden(items[2].data), "visible room not hidden")
 check(#Project.items(nil) == 0 and #Project.items("<nothing/>") == 0, "empty input")
+
+-- X4 Advanced Lighting reply (GET_SCENE_LIST)
+local alReply = "<scene_list><scene_info><scene_id>0</scene_id><name>All Interior Lights</name><is_active>False</is_active></scene_info>"
+  .. "<scene_info><scene_id>2</scene_id><name>Guest Bath &amp; Day</name><ramp_capable>True</ramp_capable><is_active>True</is_active></scene_info></scene_list>"
+local alScenes = Project.records(alReply, { "scene_info", "scene", "item" })
+check(#alScenes == 2 and alScenes[1].id == 0 and alScenes[2].name == "Guest Bath & Day", "X4 scene_info records, scene 0 included")
+check(alScenes[1].active == false and alScenes[2].active == true, "scene is_active read")
+-- X4 Macros agent reply (GET_MACROS)
+local mReply = "<macros><macro><id>1</id><name>KPD Office</name></macro><macro><id>15</id><name>Test Macro</name></macro></macros>"
+local mRecs = Project.records(mReply, { "macro", "item" })
+check(#mRecs == 2 and mRecs[2].id == 15 and mRecs[2].active == nil, "X4 macro records")
 
 -- Records in UI request replies
 local scenes = Project.records("<scenes><scene><id>3</id><name>Movie Time</name></scene><scene><name>All Off</name><id>4</id></scene></scenes>", { "scene" })
@@ -27,12 +53,12 @@ check(#Project.records("<scene><id>x</id></scene>", { "scene" }) == 0, "records 
 local calls = {}
 local fakeCall = function(name, id, request)
   calls[#calls + 1] = request
-  if request == "GET_ALL_SCENES" then return true, "<scenes><scene><id>9</id><name>Sunset</name></scene></scenes>" end
+  if request == "GET_SCENES" then return true, "<scenes><scene><id>9</id><name>Sunset</name></scene></scenes>" end
   return true, "<error/>"
 end
 local found, log, worked = Project.probe(fakeCall, 100, Project.SCENE_REQUESTS, { "scene" })
-check(#found == 1 and found[1].name == "Sunset" and worked == "GET_ALL_SCENES", "probe finds the request that works")
-check(#log == 2 and log[1].request == "GET_SCENES", "probe logs each attempt")
+check(#found == 1 and found[1].name == "Sunset" and worked == "GET_SCENES", "probe finds the request that works")
+check(#log == 2 and log[1].request == "GET_SCENE_LIST", "probe logs each attempt")
 local none = Project.probe(fakeCall, nil, Project.SCENE_REQUESTS)
 check(#none == 0, "no agent → nothing")
 

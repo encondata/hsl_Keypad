@@ -208,16 +208,18 @@ function Agent.discoverExtras(rooms, roomList)
 
   -- Advanced Lighting scenes
   Agent.alAgent = Project.findAgent(call, Project.AL_FILES, "advanced lighting", agentItems)
-  local foundScenes, sceneLog, sceneRequest = Project.probe(call, Agent.alAgent, Project.SCENE_REQUESTS, { "scene", "item" })
+  local foundScenes, sceneLog, sceneRequest = Project.probe(call, Agent.alAgent, Project.SCENE_REQUESTS, { "scene_info", "scene", "item" })
   if #foundScenes == 0 and Agent.alAgent then
-    foundScenes = Project.fromItemData(agentItems, Agent.alAgent, { "scene" })
+    foundScenes = Project.fromItemData(agentItems, Agent.alAgent, { "scene_info", "scene" })
     if #foundScenes > 0 then sceneRequest = "project item data" end
   end
   probes.scenes = { agent = Agent.alAgent, request = sceneRequest, log = sceneLog }
   local scenes, newScenes = {}, {}
   for _, s in ipairs(foundScenes) do
     local old = Agent.scenes[s.id] or {}
-    newScenes[s.id] = { name = s.name, active = old.active }
+    local active = old.active
+    if active == nil then active = s.active end
+    newScenes[s.id] = { name = s.name, active = active }
     scenes[#scenes + 1] = { id = s.id, name = s.name }
     for _, event in ipairs({ s.id * 5, s.id * 5 + 1 }) do
       if not Agent.sceneEvents[event] then
@@ -243,35 +245,49 @@ function Agent.discoverExtras(rooms, roomList)
   end
   Agent.macros = newMacros
 
-  -- Watch / Listen sources per room
+  -- Watch / Listen sources per room: the visible entries of each room's
+  -- OrderedWatchList / OrderedListenList (what Navigator shows).
   local watch, listen, newSources = {}, {}, {}
   probes.rooms = {}
-  local function add(list, kind, room, device, name)
-    local id = Project.sourceId(room, device)
-    if newSources[id] then return end
-    newSources[id] = { kind = kind, room = room, device = device, name = name }
-    list[#list + 1] = { id = id, room = room, device = device, name = name }
+  local perRoom, allIds, seenIds = {}, {}, {}
+  for _, room in ipairs(roomItems) do
+    local entry = { room = room,
+                    watch = Project.orderedSources(room.data, Project.WATCH_LIST),
+                    listen = Project.orderedSources(room.data, Project.LISTEN_LIST) }
+    perRoom[#perRoom + 1] = entry
+    for _, kind in ipairs({ "watch", "listen" }) do
+      for _, id in ipairs(entry[kind]) do
+        if not seenIds[id] then seenIds[id] = true; allIds[#allIds + 1] = id end
+      end
+    end
+  end
+  -- One lookup for every source's name (GetDeviceDisplayName isn't on every OS).
+  local names = {}
+  if #allIds > 0 then
+    local ok, devices = call("GetDevices", { DeviceIds = table.concat(allIds, ",") })
+    if ok and type(devices) == "table" then
+      for id, d in pairs(devices) do names[tonumber(id)] = type(d) == "table" and d.deviceName or nil end
+    end
   end
   local function deviceName(id)
+    if names[id] then return names[id] end
     local ok, name = call("GetDeviceDisplayName", id)
-    return ok and name or ("Device " .. id)
+    return ok and type(name) == "string" and name ~= "" and name or ("Device " .. id)
   end
-  for _, room in ipairs(roomItems) do
-    local roomProbe = { id = room.id, name = room.name }
-    for kind, spec in pairs({ watch = { Project.WATCH_REQUESTS, { "video_devices", "watch_devices", "videodevices" } },
-                              listen = { Project.LISTEN_REQUESTS, { "audio_devices", "listen_devices", "audiodevices" } } }) do
-      local requests, tags = spec[1], spec[2]
+  for _, entry in ipairs(perRoom) do
+    local room = entry.room
+    for _, kind in ipairs({ "watch", "listen" }) do
       local list = kind == "watch" and watch or listen
-      local found, plog, request = Project.probe(call, room.id, requests, { "device", "source", "item" })
-      roomProbe[kind] = { request = request, log = plog }
-      for _, d in ipairs(found) do add(list, kind, room.id, d.id, d.name) end
-      if #found == 0 then
-        for _, deviceId in ipairs(Project.roomDevices(room.data, tags)) do
-          add(list, kind, room.id, deviceId, deviceName(deviceId))
+      for _, deviceId in ipairs(entry[kind]) do
+        local id = Project.sourceId(room.id, deviceId)
+        if not newSources[id] then
+          local name = deviceName(deviceId)
+          newSources[id] = { kind = kind, room = room.id, device = deviceId, name = name }
+          list[#list + 1] = { id = id, room = room.id, device = deviceId, name = name }
         end
       end
     end
-    probes.rooms[#probes.rooms + 1] = roomProbe
+    probes.rooms[#probes.rooms + 1] = { id = room.id, name = room.name, watch = #entry.watch, listen = #entry.listen }
   end
   -- Listen to each room that has sources (current audio/video device).
   for id, source in pairs(newSources) do
@@ -437,10 +453,10 @@ local function macroCommand(id, action)
   if not Agent.macroAgent then return false, "No Macros agent found in this project." end
   if not Agent.macros[id] then return false, "Macro " .. id .. " isn't in this project." end
   if action ~= "run" then return false, "Macros can only run." end
-  -- (SDK gap) The run command isn't documented; Log Project Info shows the
-  -- agent's replies so this can be confirmed.
+  -- Confirmed on X4 (0.0.5): the same command Composer's "Execute Macro"
+  -- programming sends — EXECUTE_MACRO with a lowercase `id` (INTEGER).
   log("running macro " .. id)
-  return send(Agent.macroAgent, "EXECUTE_MACRO", { MACRO_ID = id, ID = id })
+  return send(Agent.macroAgent, "EXECUTE_MACRO", { id = id })
 end
 
 local function sourceCommand(kind, id, action)
@@ -740,11 +756,9 @@ function Agent.logProjectInfo()
   probeLog("scenes", p.scenes)
   probeLog("macros", p.macros)
   for i, room in ipairs(p.rooms or {}) do
-    if i > 3 then print("(more rooms omitted)"); break end
-    print("room " .. tostring(room.id) .. " " .. tostring(room.name))
-    probeLog("  watch", room.watch)
-    probeLog("  listen", room.listen)
+    print(string.format("room %s %s: %s watch, %s listen", tostring(room.id), tostring(room.name), tostring(room.watch), tostring(room.listen)))
     for var = 1000, 1012 do
+      if i > 3 then break end
       local ok, value = call("GetDeviceVariable", room.id, var)
       if ok and value ~= nil then print(string.format("  room var %d = %s", var, tostring(value))) end
     end

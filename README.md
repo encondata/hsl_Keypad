@@ -12,9 +12,9 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.4 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
-> rooms and macro listing work; running macros, listing scenes and Watch/Listen sources
-> are being worked out with the developer tools — see [TESTING.md](TESTING.md).
+> **Status: 0.0.5 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
+> rooms, macros (listed and run), Advanced Lighting scenes and each room's Watch / Listen
+> sources are found. Scene and source buttons are new in this build — see [TESTING.md](TESTING.md).
 
 ## Install
 
@@ -24,7 +24,7 @@ publishes what can be assigned, runs commands, and reports state live.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
 
-## What 0.0.4 does
+## What 0.0.5 does
 
 | | |
 |---|---|
@@ -37,9 +37,11 @@ publishes what can be assigned, runs commands, and reports state live.
 | Updates | checks GitHub daily (and on demand) for a newer release; shown in Composer and in the Mac app with a download link |
 | Composer | properties: Agent Version, Update Status, Automatic Update Check, Site Name, Port, Pairing Code, Paired Macs, Status, Debug Mode · actions: New Pairing Code, Unpair All Macs, Refresh Devices, Check for Updates, Log Project Info |
 
-Not yet: dimmer-vs-switch detection and fan speed counts. Scenes, macros and
-sources are *listed* using request names Control4 doesn't document; if any are
-missing on a controller, its **Log Project Info** output shows why.
+Not yet: dimmer-vs-switch detection and fan speed counts. Scenes come from the
+Advanced Lighting agent (`GET_SCENE_LIST`), macros from the Macros agent (`GET_MACROS`,
+run with `EXECUTE_MACRO {id}` — the command Composer's own programming uses), and
+Watch / Listen sources from each room's Navigator lists (rooms hidden in Navigator are
+skipped). If anything is missing on a controller, **Log Project Info** shows why.
 
 To upgrade, add the new `HSLKeypad.c4z` in Composer the same way — its higher
 version number replaces the installed agent in place.
