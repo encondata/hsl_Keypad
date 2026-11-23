@@ -9,7 +9,7 @@ Download `HSLKeypad.c4z` from the GitHub release (or build it with
 **OS 3.3.x controller:** use `HSLKeypad-legacy.c4z` instead (keep that file name;
 `scripts/package.sh --legacy --dev` builds it as `HSLKeypad-legacy-dev.c4z`). The
 steps are the same, with these differences: the agent is listed as
-**HSL Keypad (Legacy)**, **Agent Version** reads `0.0.6 (build 6) · legacy · developer build`,
+**HSL Keypad (Legacy)**, **Agent Version** reads `0.0.7 (build 7) · legacy · developer build`,
 and it has never been run on OS 3.3 — so check sections 1–3 first and expect that
 scenes, macros, sources or fan speed names may be missing. Don't install it
 alongside the standard agent.
@@ -23,8 +23,8 @@ alongside the standard agent.
    - **Pairing Code**: six digits.
    - **Status**: `Listening on port 8751 · 0 Macs connected · N lights, M fans`,
      where N and M roughly match the project.
-   - **Agent Version**: `0.0.6 (build 6) · developer build`.
-   - **Update Status**: within a minute, “Up to date (0.0.6)” — or which
+   - **Agent Version**: `0.0.7 (build 7) · developer build`.
+   - **Update Status**: within a minute, “Up to date (0.0.7)” — or which
      newer version is on GitHub. **Check for Updates** asks again now.
 4. Set **Debug Mode** to **On** and keep the **Lua** output tab open.
 
@@ -33,7 +33,7 @@ alongside the standard agent.
 1. On the Mac: HSL Toolbar → Settings → **Control4** → **+**.
 2. Enter the controller's IP address, port **8751**, and the pairing code.
 3. Click **Pair & Connect**.
-   - Expected: "Connected · agent 0.0.6". **Paired Macs** in Composer shows the
+   - Expected: "Connected · agent 0.0.7". **Paired Macs** in Composer shows the
      Mac's name. **Published by the agent** shows rooms, lights and fans.
 
 ## 3. Try the keypad

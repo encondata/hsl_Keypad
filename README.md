@@ -14,9 +14,10 @@ publishes what can be assigned, runs commands, and reports state live.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
 
-> **Status: 0.0.6 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
+> **Status: 0.0.7 developer build (alpha).** On a Control4 X4: pairing, lights, fans,
 > rooms, macros (listed and run), Advanced Lighting scenes and each room's Watch / Listen
-> sources are found. Scene and source buttons are new in this build — see [TESTING.md](TESTING.md).
+> sources are found. New in 0.0.7: the legacy package for OS 3.3.x, not yet run on a
+> 3.3 controller — see [TESTING.md](TESTING.md).
 
 ## Install
 
@@ -44,7 +45,7 @@ publishes what can be assigned, runs commands, and reports state live.
   in 3.3.0, but scenes, macros, Watch / Listen sources and fan speed names rely on
   requests confirmed on X4 only. If any are missing, **Log Project Info** shows why.
 
-## What 0.0.6 does
+## What 0.0.7 does
 
 | | |
 |---|---|

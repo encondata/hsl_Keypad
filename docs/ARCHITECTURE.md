@@ -155,7 +155,7 @@ highest non-draft release (pre-releases count; its `.c4z` asset is the download)
 `Core.VERSION`. The result shows in **Update Status**, in `welcome.update`, and as
 a live `update` message to connected Macs. Control4 only auto-installs drivers
 from its own database, so installs are manual (Composer → Add or Update Driver
-or Agent). Versioning: `Core.VERSION` (semantic, e.g. 0.0.6) plus
+or Agent). Versioning: `Core.VERSION` (semantic, e.g. 0.0.7) plus
 `driver.xml` `<version>` (an integer build that must increase every release so
 Composer replaces the installed agent).
 

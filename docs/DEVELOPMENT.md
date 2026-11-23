@@ -135,8 +135,8 @@ Two numbers, both bumped every release:
 
 | Where | Example | Purpose |
 |---|---|---|
-| `HSLKeypad/core.lua` `Core.VERSION` | `0.0.6` | Semantic version: shown in **Agent Version**, sent to the app, compared with GitHub releases |
-| `HSLKeypad/driver.xml` `<version>` | `6` | Integer build: Composer only replaces an installed agent with a **higher** one |
+| `HSLKeypad/core.lua` `Core.VERSION` | `0.0.7` | Semantic version: shown in **Agent Version**, sent to the app, compared with GitHub releases |
+| `HSLKeypad/driver.xml` `<version>` | `7` | Integer build: Composer only replaces an installed agent with a **higher** one |
 
 Also update the version text in `www/documentation.html`, `README.md` and the
 status section of `PROTOCOL.md`.

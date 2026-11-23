@@ -13,7 +13,7 @@ buttons. The app can be connected to **several controllers at once**.
 Status: **draft for review.** Items marked *(SDK)* must be confirmed against the
 DriverWorks SDK before we rely on them.
 
-## Implementation status (agent 0.0.6)
+## Implementation status (agent 0.0.7)
 
 Source in `HSLKeypad/` (`driver.xml`; `driver.lua` = Control4 layer;
 `project.lua` = room/scene/macro/source discovery; `core.lua` = this protocol;
@@ -31,6 +31,9 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   **Log Project Info** prints every attempt and reply.
 - **On X4 (0.0.3):** 31 rooms, 46 lights, 4 fans, 14 macros listed; 0 scenes and
   0 Watch/Listen sources; running a macro (`EXECUTE_MACRO`) didn't work.
+- **New in 0.0.7, not yet run on a controller:** the legacy package for OS 3.3.x
+  (`HSLKeypad-legacy.c4z`, minimum OS 3.3.0); each package's update check follows its
+  own release file. No protocol change.
 - **Fixed in 0.0.6 (found on X4):** fan variables are `IS_ON` / `CURRENT_SPEED` (live fan
   state never matched before); speed count and names come from the fan proxy's
   `GET_SETUP` (`<speeds_count>`, `<speed_names>`) and are published as `speeds` +
