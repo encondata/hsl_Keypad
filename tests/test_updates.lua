@@ -21,6 +21,27 @@ check(latest.version == "0.0.4", "highest non-draft release wins (draft 0.0.9 sk
 check(latest.url:match("/tag/v0%.0%.4$") ~= nil and latest.c4z:match("v0%.0%.4/HSLKeypad%.c4z$") ~= nil, "release page and .c4z link")
 check(Updates.latest({}) == nil and Updates.latest(nil) == nil and Updates.latest({ "junk" }) == nil, "nothing usable → nil")
 
+-- Two packages per release: each flavor follows its own file.
+local Flavor = require("flavor")
+local Legacy = dofile((debug.getinfo(1, "S").source:match("^@(.*/)") or "./") .. "../legacy/flavor.lua")
+check(Flavor.legacy == false and Legacy.legacy == true and Flavor.asset ~= Legacy.asset, "standard and legacy flavors differ")
+local both = json.decode([[
+[
+  {"tag_name":"v0.0.8","draft":false,"html_url":"p8",
+   "assets":[{"name":"HSLKeypad.c4z","browser_download_url":"std8"}]},
+  {"tag_name":"v0.0.7","draft":false,"html_url":"p7",
+   "assets":[{"name":"HSLKeypad-legacy.c4z","browser_download_url":"leg7"},{"name":"HSLKeypad.c4z","browser_download_url":"std7"}]},
+  {"tag_name":"v0.0.6","draft":false,"html_url":"p6",
+   "assets":[{"name":"HSLKeypad.c4z","browser_download_url":"std6"},{"name":"HSLKeypad-legacy.c4z","browser_download_url":"leg6"}]}
+]
+]])
+local std = Updates.latest(both, Flavor.asset, Flavor.legacy)
+check(std.version == "0.0.8" and std.c4z == "std8", "standard follows HSLKeypad.c4z")
+check(Updates.latest({ both[2] }, Flavor.asset).c4z == "std7", "standard never picks the legacy file")
+local leg = Updates.latest(both, Legacy.asset, Legacy.legacy)
+check(leg.version == "0.0.7" and leg.c4z == "leg7", "legacy skips a release without its file (0.0.8)")
+check(Updates.latest({ both[1] }, Legacy.asset, Legacy.legacy) == nil, "legacy: no release with its file → nil")
+
 -- check() through a fake C4:url()
 local function fakeUrl(code, body, errCode)
   return function()
@@ -42,6 +63,13 @@ Updates.check("0.0.3", function(r, e) result, err = r, e end)
 check(result and result.available == true and result.latest.version == "0.0.4" and err == nil, "check finds 0.0.4 over 0.0.3")
 Updates.check("0.0.4", function(r) result = r end)
 check(result.available == false, "up to date")
+C4 = { url = fakeUrl(200, json.encode(both)) }
+Updates.check("0.0.6", function(r) result = r end, Legacy)
+check(result.available == true and result.latest.version == "0.0.7", "legacy check finds 0.0.7, not 0.0.8")
+Updates.check("0.0.7", function(r) result = r end, Legacy)
+check(result.available == false, "legacy up to date while only the standard package moved on")
+Updates.check("0.0.7", function(r) result = r end, Flavor)
+check(result.available == true and result.latest.version == "0.0.8", "standard check finds 0.0.8")
 C4 = { url = fakeUrl(403, "{}") }
 Updates.check("0.0.3", function(r, e) result, err = r, e end)
 check(result == nil and err == "GitHub answered 403.", "HTTP error reported")

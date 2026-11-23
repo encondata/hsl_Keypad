@@ -32,16 +32,21 @@ for building, testing and releasing see [DEVELOPMENT.md](DEVELOPMENT.md).
 - **One package for OS 3.4.x and X4 (OS 4.x).** Only DriverWorks' own APIs: no
   LuaSocket, no `io.popen`, JSON in pure Lua. Every Control4 call is
   feature-tolerant (see *Defensive calls*).
+- **A second, standalone package for OS 3.3.x** (`HSLKeypad-legacy.c4z`), built
+  from the same source by `scripts/package.sh --legacy`. Only `driver.xml`'s
+  minimum OS and name, `flavor.lua` and a documentation note differ; see
+  DEVELOPMENT.md, *The legacy package*.
 
 ## Package layout (`HSLKeypad/`)
 
 | File | Role | Depends on Control4? |
 |---|---|---|
-| `driver.xml` | Declares the package an **agent** (`<agent>true</agent>`, `<combo>`, one `hsl_keypad` proxy), version/build, properties, actions, icons, documentation. Minimum OS 3.4.0. | — |
+| `driver.xml` | Declares the package an **agent** (`<agent>true</agent>`, `<combo>`, one `hsl_keypad` proxy), version/build, properties, actions, icons, documentation. Minimum OS 3.4.0 (3.3.0 in the legacy package). | — |
 | `driver.lua` | The **Control4 layer**: discovery, variable/event listeners, commands, server, properties, lifecycle. Everything that calls `C4:`. | Yes |
 | `core.lua` | The **protocol**: clients, pairing, tokens, catalog/state/command messages. Pure Lua; Control4 is injected (`deps`). | No |
 | `project.lua` | **Parsing** of project XML and UI-request replies: rooms, scenes, macros, room sources, fan setup. Pure Lua. | No |
 | `updates.lua` | GitHub release check: parse, compare versions, pick the latest. HTTP via an injected `C4:url()`. | Injected |
+| `flavor.lua` | Which package this is: `legacy` and the package's release file name (`asset`). The legacy build ships `legacy/flavor.lua` in its place. | No |
 | `devtools.lua` | **Developer builds only**: `ping`, `call`, `eval`, `logs` for a paired Mac while Developer Mode is on. Absent from production packages. | Yes |
 | `json.lua` | Small pure-Lua JSON encoder/decoder (`json.array` marks empty arrays). | No |
 | `www/` | Composer icons (16/32 px device icons, 70–1024 px experience icons) and `documentation.html` with the full HackSpaceLabs logo. | — |

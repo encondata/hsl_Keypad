@@ -4,6 +4,7 @@
 --
 -- Environment:
 --   HSL_EMU_PRODUCTION  act like a production package (no developer tools)
+--   HSL_EMU_LEGACY    act like the legacy package (legacy/flavor.lua)
 --   HSL_EMU_PORT      agent Port property (default 8751)
 --   HSL_EMU_CODEFILE  write the current pairing code here (for tests)
 --   HSL_EMU_OS        reported OS version (default 3.4.3.0)
@@ -15,6 +16,7 @@
 
 local here = debug.getinfo(1, "S").source:match("^@(.*/)") or "./"
 package.path = here .. "../HSLKeypad/?.lua;" .. package.path
+if os.getenv("HSL_EMU_LEGACY") then package.path = here .. "../legacy/?.lua;" .. package.path end
 local json = require("json")
 
 local out = io.stdout
@@ -142,7 +144,10 @@ function C4:url()
       local body = json.encode(json.array({
         { tag_name = "v" .. latest, name = "HSL Keypad " .. latest, draft = false, prerelease = true,
           html_url = base .. "/tag/v" .. latest,
-          assets = json.array({ { name = "HSLKeypad.c4z", browser_download_url = base .. "/download/v" .. latest .. "/HSLKeypad.c4z" } }) },
+          assets = json.array({
+            { name = "HSLKeypad.c4z", browser_download_url = base .. "/download/v" .. latest .. "/HSLKeypad.c4z" },
+            { name = "HSLKeypad-legacy.c4z", browser_download_url = base .. "/download/v" .. latest .. "/HSLKeypad-legacy.c4z" },
+          }) },
         { tag_name = "v0.0.1", draft = false, html_url = base .. "/tag/v0.0.1", assets = json.array({}) },
       }))
       self.done(self, { { code = 200, body = body, headers = {} } }, 0, nil)

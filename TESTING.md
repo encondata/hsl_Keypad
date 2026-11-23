@@ -6,6 +6,14 @@ test controller to X4 (going back from 3.4.3+ needs a factory reset).
 Download `HSLKeypad.c4z` from the GitHub release (or build it with
 `scripts/package.sh`) and copy it to the Windows machine.
 
+**OS 3.3.x controller:** use `HSLKeypad-legacy.c4z` instead (keep that file name;
+`scripts/package.sh --legacy --dev` builds it as `HSLKeypad-legacy-dev.c4z`). The
+steps are the same, with these differences: the agent is listed as
+**HSL Keypad (Legacy)**, **Agent Version** reads `0.0.6 (build 6) · legacy · developer build`,
+and it has never been run on OS 3.3 — so check sections 1–3 first and expect that
+scenes, macros, sources or fan speed names may be missing. Don't install it
+alongside the standard agent.
+
 ## 1. Load it (Composer Pro)
 
 1. Driver → **Add or Update Driver or Agent** → choose `HSLKeypad.c4z`.

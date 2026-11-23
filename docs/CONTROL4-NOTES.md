@@ -168,3 +168,12 @@ lists, fan `GET_SETUP` and variable names — are confirmed on OS 4.3 only. The
 agent tolerates their absence (empty lists, generic 3-speed fans), and on 3.4
 `GetDeviceDisplayName` may well work. To confirm: install a developer build on a
 3.4 controller, turn on Developer Mode, pair, and repeat the probes in this file.
+
+## OS 3.3 (legacy package)
+
+`HSLKeypad-legacy.c4z` declares minimum OS 3.3.0, which is as low as the
+documented calls allow (`ServerCloseClient`, `GetAllCodeItems`). Nothing has been
+run on OS 3.3 either; the same unknowns as 3.4 apply, and so does the same way
+to confirm — with the legacy developer build (`scripts/package.sh --legacy --dev`).
+The update check also needs `C4:url()` to reach `api.github.com` over HTTPS,
+which is unverified on 3.3.

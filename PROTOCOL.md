@@ -79,6 +79,10 @@ the emulator (`scripts/run-emulator.sh`) against the app's C4Hub.
   unless the SDK confirms a built-in one on both; anything X4-only is
   feature-detected at runtime, never required. `driver.xml` declares 3.4 as
   the minimum OS. Test on both before calling it done.
+- **OS 3.3.x gets a standalone legacy package**, `HSLKeypad-legacy.c4z`: the
+  same code and the same protocol, built with minimum OS 3.3.0 as a separate
+  agent (`scripts/package.sh --legacy`). The Mac app can't tell the two apart
+  except by the `os` in `welcome`.
 
 ## Transport
 

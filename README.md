@@ -8,6 +8,8 @@ room's Watch and Listen sources. The Mac assigns the buttons; the agent
 publishes what can be assigned, runs commands, and reports state live.
 
 - Runs on **Control4 OS 3.4.x and X4**: one `.c4z`, no LuaSocket, no `io.popen`.
+- **OS 3.3.x** has its own standalone package, `HSLKeypad-legacy.c4z` — see
+  [Legacy package](#legacy-package-os-33x).
 - Installed once per project from Composer Pro's **Agents** tab.
 - Local network only (or over a VPN to it). Each Mac pairs once with a
   6-digit code; five wrong codes lock pairing for a minute.
@@ -23,6 +25,24 @@ publishes what can be assigned, runs commands, and reports state live.
 3. Agents → add **HSL Keypad**. Note its **Pairing Code** property.
 4. In HSL Toolbar on the Mac: Settings → **Control4** → **+** → the controller's
    IP, port **8751**, and the pairing code → **Pair & Connect**.
+
+## Legacy package (OS 3.3.x)
+
+`HSLKeypad-legacy.c4z` is the same agent built for controllers still on OS 3.3.x
+(minimum OS 3.3.0). It installs the same way and shows up on the Agents tab as
+**HSL Keypad (Legacy)**; its **Agent Version** ends in `· legacy`.
+
+- Control4 tells drivers apart by file name, so it is a **separate agent** from
+  `HSLKeypad.c4z`. Keep the file name, and install only one of the two in a project
+  (both listen on port 8751).
+- Its update check only counts releases that include `HSLKeypad-legacy.c4z`, and
+  upgrades are always that file.
+- It keeps working if the controller is later upgraded to 3.4 or X4. Moving to the
+  standard package means removing the legacy agent, adding **HSL Keypad**, and
+  pairing the Macs again.
+- **Not yet run on a 3.3 controller.** Every documented call the agent uses exists
+  in 3.3.0, but scenes, macros, Watch / Listen sources and fan speed names rely on
+  requests confirmed on X4 only. If any are missing, **Log Project Info** shows why.
 
 ## What 0.0.6 does
 
@@ -52,10 +72,11 @@ updates from GitHub are installed by hand.
 
 | Path | What |
 |---|---|
-| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `project.lua` (discovery), `updates.lua` (GitHub release check), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation with the logo) |
+| `HSLKeypad/` | The agent: `driver.xml`, `driver.lua` (Control4 layer), `project.lua` (discovery), `updates.lua` (GitHub release check), `flavor.lua` (standard or legacy package), `core.lua` (protocol), `json.lua`, `www/` (icons, documentation with the logo) |
 | `tests/` | Lua tests — `luajit tests/run.lua` |
 | `emulator/` | Runs the real agent on a Mac behind a TCP port (`bridge.swift` + a fake Control4 API in `emulator.lua`) |
-| `scripts/package.sh` | Tests, then builds `build/HSLKeypad.c4z` |
+| `legacy/` | What differs in the OS 3.3.x package: its `flavor.lua` and documentation note |
+| `scripts/package.sh` | Tests, then builds `build/HSLKeypad.c4z` (`--legacy` → `build/HSLKeypad-legacy.c4z`) |
 | `scripts/run-emulator.sh` | Starts the emulator for the Mac app to pair with |
 | `scripts/c4dev` | Developer commands to an agent (developer builds only) |
 | [PROTOCOL.md](PROTOCOL.md) | The app ↔ agent protocol |

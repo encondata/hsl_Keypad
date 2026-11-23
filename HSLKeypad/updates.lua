@@ -34,16 +34,22 @@ end
 
 --- From a GitHub releases list (decoded JSON), the newest published release
 --- (pre-releases included, drafts skipped) as { version, url, name, c4z }.
-function Updates.latest(releases)
+--- `asset` is this package's file name in a release ("HSLKeypad.c4z" or
+--- "HSLKeypad-legacy.c4z"); without it any .c4z counts. With `required`,
+--- releases that don't include that file are skipped — nothing to install.
+function Updates.latest(releases, asset, required)
   local best
   for _, r in ipairs(type(releases) == "table" and releases or {}) do
     if type(r) == "table" and r.draft ~= true and Updates.parse(r.tag_name) then
       local version = tostring(r.tag_name):gsub("^v", "")
-      if not best or Updates.newer(version, best.version) then
-        local c4z
-        for _, asset in ipairs(type(r.assets) == "table" and r.assets or {}) do
-          if type(asset) == "table" and tostring(asset.name):match("%.c4z$") then c4z = asset.browser_download_url end
+      local c4z
+      for _, a in ipairs(type(r.assets) == "table" and r.assets or {}) do
+        if type(a) == "table" then
+          local name = tostring(a.name)
+          if (asset and name == asset) or (not asset and name:match("%.c4z$")) then c4z = a.browser_download_url end
         end
+      end
+      if (c4z or not required) and (not best or Updates.newer(version, best.version)) then
         best = { version = version, url = r.html_url or Updates.PAGE, name = r.name, c4z = c4z }
       end
     end
@@ -53,7 +59,9 @@ end
 
 --- Fetches the releases and calls done(result, err) where result is
 --- { latest = {...} or nil, available = bool } — `available` when newer than `current`.
-function Updates.check(current, done)
+--- `flavor` (flavor.lua) says which release file is this package's; the legacy
+--- package requires it.
+function Updates.check(current, done, flavor)
   if not C4 or type(C4.url) ~= "function" then
     done(nil, "This OS has no C4:url() web interface.")
     return
@@ -75,7 +83,7 @@ function Updates.check(current, done)
           done(nil, "Couldn't read GitHub's reply.")
           return
         end
-        local latest = Updates.latest(releases)
+        local latest = Updates.latest(releases, flavor and flavor.asset, flavor and flavor.legacy)
         done({ latest = latest, available = latest ~= nil and Updates.newer(latest.version, current) })
       end)
       :SetOptions({ fail_on_error = false, timeout = 30, connect_timeout = 10 })

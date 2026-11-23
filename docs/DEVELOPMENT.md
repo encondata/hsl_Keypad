@@ -54,7 +54,7 @@ Then type into the emulator to simulate the project:
 
 Environment: `HSL_EMU_PORT`, `HSL_EMU_OS` (reported OS, default 3.4.3.0),
 `HSL_EMU_LATEST` (fake latest GitHub release), `HSL_EMU_PRODUCTION` (behave like a
-production package), `HSL_EMU_CODEFILE` (write the pairing code to a file, for
+production package), `HSL_EMU_LEGACY` (behave like the legacy package), `HSL_EMU_CODEFILE` (write the pairing code to a file, for
 tests).
 
 ## Debugging on a real controller
@@ -95,13 +95,39 @@ Rules of thumb:
 ## Packaging
 
 ```sh
-scripts/package.sh          # production → build/HSLKeypad.c4z (no developer tools; verified)
-scripts/package.sh --dev    # developer  → build/HSLKeypad-dev.c4z
+scripts/package.sh                   # production → build/HSLKeypad.c4z (no developer tools; verified)
+scripts/package.sh --dev             # developer  → build/HSLKeypad-dev.c4z
+scripts/package.sh --legacy          # production → build/HSLKeypad-legacy.c4z (OS 3.3.x)
+scripts/package.sh --legacy --dev    # developer  → build/HSLKeypad-legacy-dev.c4z
 ```
 
 A `.c4z` is a zip of `driver.xml`, the Lua files and `www/`. The production
 build removes `devtools.lua` and the `DEV:BEGIN…DEV:END` block from
 `driver.xml`, then fails if either is still in the package.
+
+### The legacy package (OS 3.3.x)
+
+`--legacy` builds a standalone package for OS 3.3.x from the **same source**.
+Nothing in `HSLKeypad/` is forked; the script changes four things in the staged
+copy and then checks each one in the finished package:
+
+| What | Standard | Legacy |
+|---|---|---|
+| `driver.xml` `<minimum_os_version>` | `3.4.0` | `3.3.0` |
+| `driver.xml` `<name>` | HSL Keypad | HSL Keypad (Legacy) |
+| `flavor.lua` | `HSLKeypad/flavor.lua` | `legacy/flavor.lua` (`legacy = true`, `asset = "HSLKeypad-legacy.c4z"`) |
+| `www/documentation.html` | as written | OS line changed; `legacy/note.html` replaces `<!-- LEGACY-NOTE -->` |
+
+`flavor.lua` is the only thing the Lua code looks at: it adds `· legacy` to
+**Agent Version** and tells the update check which release file is this
+package's. The legacy package ignores releases without `HSLKeypad-legacy.c4z`.
+
+Control4 identifies a driver by its **file name**, so the legacy package must be
+installed as `HSLKeypad-legacy.c4z` every time (rename the `-dev` build before
+copying it to Composer, as with the standard one). It is a different agent from
+`HSLKeypad.c4z`: separate pairings, and only one of them per project.
+
+To try it in the emulator: `HSL_EMU_LEGACY=1 HSL_EMU_OS=3.3.1.0 scripts/run-emulator.sh`.
 
 ## Versioning
 
@@ -122,15 +148,17 @@ Until 1.0 every release is a **developer build** and a GitHub **prerelease**.
 1. Bump both versions; update README, PROTOCOL status, documentation.html.
 2. `luajit tests/run.lua`, then the Mac app's `Scripts/c4-e2e.sh` against the
    emulator (update the expected Agent Version string in `Tools/c4-e2e/main.swift`).
-3. `scripts/package.sh` (proves production stripping still works) and
-   `scripts/package.sh --dev`.
+3. `scripts/package.sh` (proves production stripping still works),
+   `scripts/package.sh --dev` and `scripts/package.sh --legacy --dev`.
 4. Check the repo for private details.
 5. Commit to `main`, push.
-6. Publish, uploading the **developer** package under the plain name:
+6. Publish, uploading the **developer** packages under the plain names (a
+   release without `HSLKeypad-legacy.c4z` is invisible to legacy agents):
 
    ```sh
    cp build/HSLKeypad-dev.c4z /tmp/rel/HSLKeypad.c4z
-   gh release create vX.Y.Z /tmp/rel/HSLKeypad.c4z --target main --prerelease \
+   cp build/HSLKeypad-legacy-dev.c4z /tmp/rel/HSLKeypad-legacy.c4z
+   gh release create vX.Y.Z /tmp/rel/HSLKeypad.c4z /tmp/rel/HSLKeypad-legacy.c4z --target main --prerelease \
      --title "HSL Keypad X.Y.Z (developer build)" --notes-file notes.md
    ```
 7. Confirm with `scripts/c4dev eval 'DEV.agent.checkForUpdates()'` and the

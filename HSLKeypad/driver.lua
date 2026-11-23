@@ -1,4 +1,5 @@
--- HSL Keypad agent for Control4 (OS 3.4.x and X4).
+-- HSL Keypad agent for Control4 (OS 3.4.x and X4; OS 3.3.x as the legacy
+-- package — see flavor.lua).
 --
 -- The Control4 layer around core.lua (protocol) and json.lua: it listens for
 -- the HSL Toolbar Mac app, discovers lights and fans, sends their commands,
@@ -13,6 +14,7 @@ local json = require("json")
 local Core = require("core")
 local Project = require("project")
 local Updates = require("updates")
+local Flavor = require("flavor")  -- standard or legacy package
 -- Developer builds only: devtools.lua isn't in production packages.
 local hasDev, Dev = pcall(require, "devtools")
 if not hasDev then Dev = nil end
@@ -517,10 +519,13 @@ end
 function Agent.versionText()
   local ok, build = call("GetDriverConfigInfo", "version")
   build = ok and tostring(build or ""):match("%d+") or nil
-  return Core.VERSION .. (build and (" (build " .. build .. ")") or "") .. (Dev and " · developer build" or "")
+  return Core.VERSION .. (build and (" (build " .. build .. ")") or "")
+    .. (Flavor.legacy and " · legacy" or "") .. (Dev and " · developer build" or "")
 end
 
---- Asks GitHub for a newer release; updates "Update Status" and tells Macs.
+--- Asks GitHub for a newer release of this package (the legacy package only
+--- counts releases that include its own file); updates "Update Status" and
+--- tells Macs.
 function Agent.checkForUpdates()
   update("Update Status", "Checking…")
   Updates.check(Core.VERSION, function(result, err)
@@ -530,7 +535,8 @@ function Agent.checkForUpdates()
     end
     if result.available then
       Agent.update = { version = result.latest.version, url = result.latest.url }
-      update("Update Status", result.latest.version .. " available — install it in Composer from " .. Updates.PAGE)
+      update("Update Status", result.latest.version .. " available — install "
+        .. (Flavor.legacy and Flavor.asset or "it") .. " in Composer from " .. Updates.PAGE)
       if Agent.core then
         Agent.core:broadcast({ type = "update", version = Agent.update.version, url = Agent.update.url })
       end
@@ -538,7 +544,7 @@ function Agent.checkForUpdates()
       Agent.update = nil
       update("Update Status", "Up to date (" .. Core.VERSION .. ")")
     end
-  end)
+  end, Flavor)
 end
 
 --- A first check a minute after startup, then daily — unless turned off.
